@@ -4,6 +4,7 @@ module Parse where
 import Types
 import Text.Parsec
 import Control.Monad
+import Prelude hiding (take)
 import Control.Applicative hiding (many, (<|>))
 
 type Parser a = forall s m u. (Stream s m Char) => ParsecT s u m a
@@ -44,11 +45,27 @@ assumeProve = do
 theoremStatement :: Parser TheoremStatement
 theoremStatement = assumeProve
 
+maybeJustified :: Parser (MaybeJustified String)
+maybeJustified =
+  (,) <$> (literalText <* spaces)
+      <*> optionMaybe (symbol "because" *> proof)
+
+suchThat :: Parser SuchThat
+suchThat = do
+  symbol "such" >> symbol "that"
+  SuchThat <$> listOf maybeJustified
+           <*> optionMaybe (symbol "because" *> proof)
+
+take :: Parser Step
+take = do
+  symbol "take"
+  Take <$> listOf literalText <*> optionMaybe suchThat
+
 -- Add such that option for let
 let_ :: Parser Step
 let_ = do
   symbol "let"
-  Let <$> listOf literalText
+  Let <$> listOf maybeJustified <*> optionMaybe suchThat
 
 cases :: Parser Step
 cases = do
@@ -62,10 +79,19 @@ cases = do
 claim :: Parser Step
 claim = do
   symbol "claim"
-  Claim <$> (literalText <* spaces) <*> proof
+  Claim <$> (literalText <* spaces) <*> (optionMaybe proof)
+
+suppose :: Parser Step
+suppose = do
+  symbol "suppose"
+  assumps <- listOf literalText
+  symbol "then"
+  results <- listOf literalText
+  spaces
+  Suppose assumps results <$> optionMaybe (symbol "because" *> proof)
 
 step :: Parser Step
-step = let_ <|> try cases <|> claim
+step = let_ <|> suppose <|> take <|> try cases <|> claim
 
 proof :: Parser Proof
 proof = try (fmap Simple literalText) <|> fmap Steps (listOf step)
@@ -75,6 +101,10 @@ theorem = do
   symbol "theorem"
   Theorem <$> (literalText <* spaces) <*> (theoremStatement <* spaces) <*> proof
 
+macros = do
+  symbol "macros"
+  Macros <$> literalText
+
 document :: Parser [Declaration]
-document = (theorem <|> definition) `sepBy` spaces
+document = (macros <|> theorem <|> definition) `sepBy` spaces
 
