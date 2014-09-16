@@ -1,0 +1,18 @@
+definition [|irrational|] [
+  [|A real number $x$ is said to be irrational if $x \notin \bq$|]
+]
+
+theorem [|$\sqrt{2}$ is irrational|]
+  assume [
+    [| $sqrt{2} \in \bq$ |]
+  ] prove [
+    [| $\bot$ |]
+  ]
+
+  [ claim [|It suffices to show that assuming $\sqrt{2} \in \bq$ leads to absurdity|]
+    [|Definition of irrational|]
+  , let [
+      [| \sqrt{2} = p/q |]
+    ]
+  ]
+
