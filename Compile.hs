@@ -8,7 +8,9 @@ import Control.Applicative
 import Data.Monoid
 
 import Types
--- This is gonna be some ugly-ass HTML. Sorry Jesus.
+
+-- Consider allowing trailing commas or removing commas altogether
+-- as there's really no need for them.
 
 indent :: Int -> T.Text -> T.Text
 indent n = T.unlines . map (T.replicate (2 * n) " " <>) . T.lines
@@ -28,9 +30,14 @@ tag' tagName children =
 div :: T.Text -> [T.Text] -> T.Text
 div = tag "div"
 
+paragraph :: T.Text -> T.Text
+paragraph = tag' "p" . pure
+
 compileComment :: Comment -> T.Text
 compileComment (Comment mayName comm) =
-  div "comment" (maybe id ((:) . T.pack) mayName [T.pack comm])
+  div "comment"
+    (maybe id ((:) . div "name" . pure . T.pack) mayName
+      [div "node-content" [paragraph $ T.pack comm]])
 
 compileTheoremStatement :: TheoremStatement -> T.Text
 compileTheoremStatement (AssumeProve assumps results) =
@@ -46,7 +53,7 @@ maybeToList = maybe [] pure
 compileSuchThat :: SuchThat -> T.Text
 compileSuchThat (SuchThat conds mayProof) =
   div "suchthat"
-    (div "conditions" (map compileMaybeJustified conds)
+    (ul "conditions" (map compileMaybeJustified conds)
     : maybeToList ((div "justification" . pure . compileProof) <$> mayProof))
 
     {-
@@ -57,14 +64,18 @@ compileSuchThat (SuchThat conds mayProof) =
       (div "statement" [T.pack cond] :
         maybeToList (compileProof <$> mayLocalProof))
 -}
+
+ul = tag "ul"
+li = tag "li"
+
 compileBinder name bindings suchThat =
   div name (
-    div "bindings" (map (div "binding" . pure . T.pack) bindings) :
-    maybe [] (pure . compileSuchThat) suchThat
+    ul "bindings" (map (li "binding" . pure . T.pack) bindings) :
+    maybeToList (compileSuchThat <$> suchThat)
   )
 
 compileMaybeJustified (stmt, mayJustification) =
-  div "list-item"
+  li "list-item"
     (div "statement" [T.pack stmt] :
      maybeToList (compileProof <$> mayJustification))
 
@@ -75,7 +86,7 @@ compileStep (Cases cases) = div "cases" (map compileCase cases) where
 
 compileStep (Let bindings suchThat)  =
   div "let" (
-    div "bindings" (map compileMaybeJustified bindings)
+    ul "bindings" (map compileMaybeJustified bindings)
     : maybeToList (compileSuchThat <$> suchThat))
 
 compileStep (Take bindings suchThat) = compileBinder "take" bindings suchThat
@@ -85,10 +96,11 @@ compileStep (Claim stmt proof)       =
 
 compileStep (Suppose assumps results mayProof) =
   div "suppose" (
-    div "assumptions" (map (div "list-item" . pure . T.pack) assumps)
-    : div "results" (map (div "list-item" . pure . T.pack) results)
+    ul "assumptions" (map (li "list-item" . pure . T.pack) assumps)
+    : ul "results" (map (li "list-item" . pure . T.pack) results)
     : maybeToList (compileProof <$> mayProof))
-  
+
+compileStep (CommentStep comment) = compileComment comment
 
 compileProof :: Proof -> T.Text
 compileProof (Simple proof) = div "proof simple-proof" [T.pack proof]
@@ -107,13 +119,35 @@ compileDecl (Macros macros) =
 
 compileDecl (Definition name clauses) =
   div "definition"
-    (div "name" [T.pack name] : map (either T.pack compileComment) clauses)
+    [ div "name" [T.pack name] 
+    , div "node-content" (map (either T.pack compileComment) clauses)
+    ]
 
 compile :: Document -> T.Text
 compile doc = tag' "html" [
-    tag' "head" [],
+    tag' "head" headContent,
     tag' "body" [
       T.intercalate "\n" $ map compileDecl doc
     ]
   ]
+  where
+  css href = "<link rel='stylesheet' type='text/css' href='" <> href <> "'>"
+  headContent =
+    [ css "proof.css"
+    , css "static/fonts/latinmodernroman_10regular_macroman/stylesheet.css"
+    , css "static/fonts/latinmodernroman_10bold_macroman/stylesheet.css"
+    , css "static/fonts/latinmodernroman_10italic_macroman/stylesheet.css"
+    , css "static/fonts/latinmodernromancaps_10regular_macroman/stylesheet.css"
+    , css "static/fonts/latinmodernromancaps_10regular_macroman/stylesheet.css"
+    , css "static/fonts/latinmodernromandemi_10regular_macroman/stylesheet.css"
+    , css "static/fonts/latinmodernromandemi_10oblique_macroman/stylesheet.css"
+    , "<script src='jquery.min.js'></script>"
+    , "<script type='text/javascript' src='http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>"
+    , "<script type='text/x-mathjax-config'>"
+    , "  MathJax.Hub.Config({"
+    , "    tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}"
+    , "  });"
+    , "</script>"
+    , "<script type='text/javascript' src='proof.js'></script>"
+    ]
 

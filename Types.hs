@@ -26,6 +26,7 @@ data Step
   | Suppose [Text] [Text] (Maybe Proof)
   | Take [Text] (Maybe SuchThat)
   | Claim Statement (Maybe Proof)
+  | CommentStep Comment
   deriving Show
 
 data Declaration
