@@ -57,7 +57,7 @@ comment' p = do
   whiteSpace
   text2 <- optionMaybe texBlock
   let (name, comm) = maybe (Nothing, text1) (\t2 -> (Just text1, t2)) text2 
-  return $ (x, Comment name comm)
+  return (x, Comment name comm)
 
 comment = snd <$> comment' (pure ())
 

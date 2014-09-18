@@ -1,14 +1,17 @@
-{-# LANGUAGE OverloadedStrings, TupleSections #-}
+{-# LANGUAGE OverloadedStrings, TupleSections, LambdaCase #-}
 module Compile (compile) where
 
 import Prelude hiding (div)
 
 import qualified Data.Text as T
 import Control.Applicative
+import Control.Arrow
 import Data.Monoid
+import Data.Traversable
 import qualified Data.Map as M
 import Control.Monad.State
 import Control.Monad.Except
+import Control.Monad.Identity
 
 import Types
 
@@ -17,14 +20,70 @@ import Types
 
 -- Things break if there's a label inside of mathmode.
 
-data PState = PState { }
+data PState = PState
+  { labels :: M.Map Label (Int, Int)
+  , depth :: Int
+  }
 
-type P m a = StateT PState (ExcepT String m a)
+type P a = StateT PState (ExceptT String Identity) a
 
+labelString :: Label -> String
+labelString (Label s) = s
 
-collectLabels :: [Declaration (Maybe Label)] -> M.Map Label (Int, Int)
-collectLabels = undefined
-  where goDecl :: Declaration (Maybe Label) -> M.Map Label (Int, Int)
+{-
+secondM :: (a -> m b) -> (s, b) -> m (s, b)
+secondM f (x, y) = (x,) <$> f y
+
+maybeM :: (a -> m b) -> Maybe a -> m (Maybe b)
+maybeM f Nothing  = pure Nothing
+maybeM f (Just x) = Just <$> f x
+-}
+insertErr mayLab v =
+  flip (maybe (return ())) mayLab $ \lab ->
+    (M.lookup lab <$> get) >>= \case
+      Nothing -> modify (M.insert lab v) -- TODO: Lensify
+      Just _  -> throwError ("Duplicate label: " ++ labelString lab)
+
+collectLabels :: [DeclarationF (Maybe Label)] -> M.Map Label (Int, Int)
+collectLabels = sequence . zipWith goDecl [0..]
+  where
+  goDecl :: Int -> DeclarationF (Maybe Label) -> P (DeclarationF (Int, Int)) -- M.Map Label (Int, Int)
+  goDecl i (Theorem lab kind name stmt prf) = do
+    insertErr lab (0, i)
+    Theorem (0, i) kind name stmt <$> goProof 1 prf
+
+  goDecl i (Definition lab name clauses) =
+    Definition (0, i) name clauses <$ insertErr lab (0, i)
+
+  goDecl i (CommentDecl lab comm) =
+    CommentDecl (0, i) comm <$ insertErr lab (0, i)
+
+  goProof _ p@(Simple _)  = pure p
+  goProof d (Steps steps) = fmap Steps . sequence $ zipWith (goStep d) [0..] steps
+
+  goStep i = traverse $ \lab -> do
+    d <- depth <$> get -- TODO: Rewrite using lens
+    insertErr lab (d, i)
+    (d, i)
+
+  {-
+  goStep d i (Cases lab cases) = do
+    insertErr lab (d, i)
+    Cases (d,i) <$> mapM (traverse (goProof (d + 1))) cases
+
+  goStep d i (Let lab defs bc) = do
+    insertErr lab (d, i)
+    Let (d,i) <$> mapM (traverse $ traverse (goProof (d + 1))) defs
+              <*> traverse (goSuchThat (d + 1)) bc
+
+  goStep d i (Suppose lab assumps results prf) =
+    insertErr lab (d, i)
+    Suppose (d,i) assumps results <$> traverse (goProof (d + 10)) prf
+
+  goStep d i (Take lab defs bc) = do
+    insertErr lab (d, i)
+    Take (d,i) defs <$> traverse (goSuchThat (d + 1)) bc
+  -}
 
 indent :: Int -> T.Text -> T.Text
 indent n = T.unlines . map (T.replicate (2 * n) " " <>) . T.lines

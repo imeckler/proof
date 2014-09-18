@@ -5,11 +5,11 @@ import Data.Foldable
 import Data.Traversable
 
 newtype Ref   = Ref String deriving Show
-newtype Label = Label String deriving Show
+newtype Label = Label String deriving (Eq, Ord, Show)
 
-type TexBlock  = [Either String Ref]
+type TexBlock = [Either String Ref]
 
-data SuchThat = SuchThat [MaybeJustified TexBlock] (Maybe Proof)
+data SuchThatF a = SuchThat [MaybeJustifiedF a TexBlock] (Maybe (ProofF a))
   deriving Show
 
 data Comment = Comment (Maybe TexBlock) TexBlock
@@ -18,35 +18,36 @@ data Comment = Comment (Maybe TexBlock) TexBlock
 data TheoremStatement = AssumeProve [TexBlock] [TexBlock]
   deriving Show
 
-type MaybeJustified a = (a, Maybe Proof)
+type MaybeJustifiedF a p = (p, Maybe (ProofF a))
 
-data Proof
-  = Steps [Step]
+data ProofF a
+  = Steps [StepF a]
   | Simple TexBlock
   deriving Show
+
+type SuchThat = SuchThatF StepData
+type Proof = ProofF StepData
+type Step = StepF StepData
+type Declaration = DeclarationF DeclarationData
 
 type StepData = Maybe Label
 type DeclarationData = Maybe Label
 
 data StepF a
-  = Cases a [(TexBlock, Proof)]
-  | Let a [MaybeJustified TexBlock] (Maybe SuchThat)
-  | Suppose a [TexBlock] [TexBlock] (Maybe Proof)
-  | Take a [TexBlock] (Maybe SuchThat)
-  | Claim a TexBlock (Maybe Proof)
+  = Cases a [(TexBlock, ProofF a)]
+  | Let a [MaybeJustifiedF a TexBlock] (Maybe (SuchThatF a))
+  | Suppose a [TexBlock] [TexBlock] (Maybe (ProofF a))
+  | Take a [TexBlock] (Maybe (SuchThatF a))
+  | Claim a TexBlock (Maybe (ProofF a))
   | CommentStep a Comment
-  deriving (Show, Functor, Foldable, Traversable)
-
-type Step = StepF StepData
+  deriving (Show, Functor, Foldable, Traversable) -- GHC bug. Loading this file causes (!!) index too large error
 
 data DeclarationF a
-  = Theorem a String TexBlock TheoremStatement Proof
+  = Theorem a String TexBlock TheoremStatement (ProofF a)
   | Definition a TexBlock [Either TexBlock Comment]
   | CommentDecl a Comment
   | Macros String
   deriving (Show, Functor, Foldable, Traversable)
-
-type Declaration = DeclarationF DeclarationData
 
 type Location = (Int, Int)
 
