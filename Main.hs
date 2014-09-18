@@ -17,6 +17,7 @@ main = do
   parseFromFile document path >>= \case
     Left err  -> print err
     Right doc -> do
+      print doc
       case runExcept (compile doc) of
         Left err -> putStrLn err
         Right docTxt -> T.putStrLn docTxt

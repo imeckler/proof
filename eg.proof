@@ -6,7 +6,7 @@ definition [|irrational|] [
   [|A real number $x$ is said to be irrational if $x \notin \bq$|]
 ]
 
-theorem [|$\sqrt{2}$ is irrational|]
+theorem (root2irrat) [|$\sqrt{2}$ is irrational|]
   assume [
     [| $sqrt{2} \in \bq$ |]
   ] prove [
@@ -42,6 +42,5 @@ theorem [|$\sqrt{2}$ is irrational|]
 lemma [|foo is bar|]
   assume [[| foo|]]
   prove [[| is bar|]]
+  [| See proof of \gref{root2irrat}. |]
 
-  [
-  ]

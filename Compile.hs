@@ -51,6 +51,8 @@ collectLabels = sequence . zipWith goDecl [0..]
   goDecl i (CommentDecl () lab comm) =
     CommentDecl (0, i) lab comm <$ insertErr lab (0, i)
 
+  goDecl _ (Macros macros) = return (Macros macros)
+
   goProof :: Int -> ProofF () Ref -> C (ProofF (Int, Int) Ref)
   goProof _ (Simple tb)  = pure (Simple tb)
   goProof d (Steps steps) = fmap Steps . sequence $ zipWith (goStep d) [0..] steps
