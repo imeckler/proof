@@ -7,6 +7,7 @@ import Text.Parsec hiding (label)
 import Control.Monad
 import Prelude hiding (take)
 import Control.Applicative hiding (many, (<|>))
+import Data.Functor.Coproduct
 
 import Data.Char (isSpace)
 
@@ -24,8 +25,8 @@ lineComment = do
 whiteSpace = skipMany (simpleSpace <|> lineComment) where
   simpleSpace = skipMany1 (satisfy isSpace) 
 
-texBlock :: Parser TexBlock
-texBlock = do
+texBlock :: Parser (TexBlock Ref)
+texBlock = TexBlock <$> do
   string "[|"
   manyTill chunk (try (string "|]"))
   where
@@ -49,7 +50,7 @@ texBlock = do
     where
       verbatimStart = symbol "\\begin" *> char '{' *> manyTill (satisfy (/= '}')) (char '}')
 
-comment' :: Parser a -> Parser (a, Comment)
+comment' :: Parser a -> Parser (a, Comment Ref)
 comment' p = do
   symbol "comment"
   x <- p
@@ -63,22 +64,19 @@ comment = snd <$> comment' (pure ())
 
 listOf p = between (symbol "[" *> whiteSpace) (symbol "]") ((p <* whiteSpace) `sepBy` symbol ",")
 
-stepData = optionMaybe (between (symbol "(") (symbol ")") label <* whiteSpace)
-declData = stepData
+nodeData :: Parser NodeData
+nodeData = optionMaybe (between (symbol "(") (symbol ")") label <* whiteSpace)
 
-stepKeywordWithData :: String -> Parser StepData
-stepKeywordWithData kw = symbol kw *> stepData
+keywordWithData :: String -> Parser NodeData
+keywordWithData kw = symbol kw *> nodeData
 
-declKeywordWithData :: String -> Parser StepData
-declKeywordWithData = stepKeywordWithData
-
-definition :: Parser Declaration
+definition :: Parser (Raw DeclarationF)
 definition =
-  Definition <$> declKeywordWithData "definition"
-             <*> texBlock <* whiteSpace
-             <*> listOf (fmap Left texBlock <|> fmap Right comment)
+  Definition () <$> keywordWithData "definition"
+                <*> texBlock <* whiteSpace
+                <*> listOf (fmap left texBlock <|> fmap right comment)
 
-assumeProve :: Parser TheoremStatement
+assumeProve :: Parser (TheoremStatement Ref)
 assumeProve = do
   symbol "assume"
   assumptions <- listOf texBlock
@@ -87,83 +85,83 @@ assumeProve = do
   results <- listOf texBlock
   return (AssumeProve assumptions results)
 
-theoremStatement :: Parser TheoremStatement
+theoremStatement :: Parser (TheoremStatement Ref)
 theoremStatement = assumeProve
 
-maybeJustified :: Parser (MaybeJustified TexBlock)
+maybeJustified :: Parser (MaybeJustifiedF () Ref)
 maybeJustified =
   (,) <$> (texBlock <* whiteSpace)
       <*> optionMaybe (symbol "because" *> proof)
 
-suchThat :: Parser SuchThat
+suchThat :: Parser (Raw SuchThatF)
 suchThat = do
   symbol "such" >> symbol "that"
   SuchThat <$> listOf maybeJustified
            <*> optionMaybe (symbol "because" *> proof)
 
-take :: Parser Step
+take :: Parser (Raw StepF)
 take =
-  Take <$> stepKeywordWithData "take"
-       <*> listOf texBlock
-       <*> optionMaybe suchThat
+  Take () <$> keywordWithData "take"
+          <*> listOf texBlock
+          <*> optionMaybe suchThat
 
 -- Add such that option for let
-let_ :: Parser Step
+let_ :: Parser (Raw StepF)
 let_ =
-  Let <$> stepKeywordWithData "let"
-      <*> listOf maybeJustified
-      <*> optionMaybe suchThat
+  Let () <$> keywordWithData "let"
+         <*> listOf maybeJustified
+         <*> optionMaybe suchThat
 
-cases :: Parser Step
+cases :: Parser (Raw StepF)
 cases =
-  Cases <$> stepKeywordWithData "cases" <*> listOf oneCase
+  Cases () <$> keywordWithData "cases" <*> listOf oneCase
   where
   oneCase = do
     symbol "case"
     (,) <$> (texBlock <* whiteSpace) <*> proof
 
-claim :: Parser Step
+claim :: Parser (Raw StepF)
 claim =
-  Claim <$> stepKeywordWithData "claim"
-        <*> texBlock <* whiteSpace
-        <*> optionMaybe proof
+  Claim () <$> keywordWithData "claim"
+           <*> texBlock <* whiteSpace
+           <*> optionMaybe proof
 
-suppose :: Parser Step
+suppose :: Parser (Raw StepF)
 suppose =
-  Suppose <$> (stepKeywordWithData "suppose")
-          <*> listOf texBlock <* symbol "then" -- TODO: Need whitespace here before symbol?
-          <*> listOf texBlock <* whiteSpace
-          <*> optionMaybe (symbol "because" *> proof)
+  Suppose () <$> (keywordWithData "suppose")
+             <*> listOf texBlock <* symbol "then" -- TODO: Need whitespace here before symbol?
+             <*> listOf texBlock <* whiteSpace
+             <*> optionMaybe (symbol "because" *> proof)
 
-step :: Parser Step
+step :: Parser (Raw StepF)
 step =  let_
     <|> suppose
     <|> take
-    <|> try (uncurry CommentStep <$> comment' stepData)
+    <|> try (uncurry (CommentStep ()) <$> comment' nodeData)
     <|> try claim
     <|> cases
 
-proof :: Parser Proof
+proof :: Parser (Raw ProofF)
 proof = try (fmap Simple texBlock) <|> fmap Steps (listOf step)
 
 label :: Parser Label
 label = Label <$> many (noneOf "%~#\\()[]{}")
 
 -- TODO: Add support for in-file definition of theorem-kinds
-theorem :: Parser Declaration
+theorem :: Parser (Raw DeclarationF)
 theorem = do
   kind      <- symbol "theorem" <|> symbol "lemma"
   name      <- texBlock <* whiteSpace
   mayLabel  <- optionMaybe (between (symbol "(") (symbol ")") label) <* whiteSpace
   statement <- theoremStatement <* whiteSpace
   prf       <- proof
-  pure (Theorem mayLabel kind name statement prf)
+  pure (Theorem () mayLabel kind name statement prf)
 
 macros = do
   symbol "macros"
   Macros <$> literalText
   where literalText = symbol "[|" *> manyTill anyChar (try (symbol "|]"))
 
-document :: Parser [Declaration]
+document :: Parser RawDocument
 document = (macros <|> theorem <|> definition) `sepBy` whiteSpace
 

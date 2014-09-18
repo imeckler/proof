@@ -1,55 +1,75 @@
-{-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
+{-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable, StandaloneDeriving #-}
 module Types where
 
 import Data.Foldable
 import Data.Traversable
+import Data.Functor.Coproduct
 
 newtype Ref   = Ref String deriving Show
 newtype Label = Label String deriving (Eq, Ord, Show)
 
-type TexBlock = [Either String Ref]
+newtype TexBlock loc = TexBlock { unTexBlock :: [Either String loc] }
+  deriving (Show, Functor, Traversable, Foldable)
 
-data SuchThatF a = SuchThat [MaybeJustifiedF a TexBlock] (Maybe (ProofF a))
-  deriving Show
-
-data Comment = Comment (Maybe TexBlock) TexBlock
+data SuchThatF a loc = SuchThat [MaybeJustifiedF a loc] (Maybe (ProofF a loc))
   deriving (Show)
 
-data TheoremStatement = AssumeProve [TexBlock] [TexBlock]
-  deriving Show
+deriving instance Functor (StepF a)
+deriving instance Functor (ProofF a)
+deriving instance Functor (SuchThatF a)
+deriving instance Functor (DeclarationF a)
 
-type MaybeJustifiedF a p = (p, Maybe (ProofF a))
+deriving instance Foldable (StepF a)
+deriving instance Foldable (ProofF a)
+deriving instance Foldable (SuchThatF a)
+deriving instance Foldable (DeclarationF a)
 
-data ProofF a
-  = Steps [StepF a]
-  | Simple TexBlock
-  deriving Show
+deriving instance Traversable (StepF a)
+deriving instance Traversable (ProofF a)
+deriving instance Traversable (SuchThatF a)
+deriving instance Traversable (DeclarationF a)
 
-type SuchThat = SuchThatF StepData
-type Proof = ProofF StepData
-type Step = StepF StepData
-type Declaration = DeclarationF DeclarationData
-
-type StepData = Maybe Label
-type DeclarationData = Maybe Label
-
-data StepF a
-  = Cases a [(TexBlock, ProofF a)]
-  | Let a [MaybeJustifiedF a TexBlock] (Maybe (SuchThatF a))
-  | Suppose a [TexBlock] [TexBlock] (Maybe (ProofF a))
-  | Take a [TexBlock] (Maybe (SuchThatF a))
-  | Claim a TexBlock (Maybe (ProofF a))
-  | CommentStep a Comment
-  deriving (Show, Functor, Foldable, Traversable) -- GHC bug. Loading this file causes (!!) index too large error
-
-data DeclarationF a
-  = Theorem a String TexBlock TheoremStatement (ProofF a)
-  | Definition a TexBlock [Either TexBlock Comment]
-  | CommentDecl a Comment
-  | Macros String
+data Comment loc = Comment (Maybe (TexBlock loc)) (TexBlock loc)
   deriving (Show, Functor, Foldable, Traversable)
+
+data TheoremStatement loc = AssumeProve [TexBlock loc] [TexBlock loc]
+  deriving (Show, Functor, Foldable, Traversable)
+
+type MaybeJustifiedF a loc = (TexBlock loc, Maybe (ProofF a loc))
+
+data ProofF a loc
+  = Steps [StepF a loc]
+  | Simple (TexBlock loc)
+  deriving (Show)
+
+type NodeData = Maybe Label
+
+data StepF a loc
+  = Cases a NodeData [(TexBlock loc, ProofF a loc)]
+  | Let a NodeData [MaybeJustifiedF a loc] (Maybe (SuchThatF a loc))
+  | Suppose a NodeData [TexBlock loc] [TexBlock loc] (Maybe (ProofF a loc))
+  | Take a NodeData [TexBlock loc] (Maybe (SuchThatF a loc))
+  | Claim a NodeData (TexBlock loc) (Maybe (ProofF a loc))
+  | CommentStep a NodeData (Comment loc)
+  deriving (Show)
+
+data DeclarationF a loc
+  = Theorem a NodeData String (TexBlock loc) (TheoremStatement loc) (ProofF a loc)
+  | Definition a NodeData (TexBlock loc) [Coproduct TexBlock Comment loc]
+  | CommentDecl a NodeData (Comment loc)
+  | Macros String
+  deriving (Show)
 
 type Location = (Int, Int)
 
-type Document = [Declaration]
+type DocumentF a loc = [DeclarationF a loc]
+
+type Raw f = f () Ref
+
+type FullLocation = (Ref, (Int, Int))
+
+type Located f = f (Int, Int) FullLocation
+
+type RawDocument        = DocumentF () Ref
+type LocatedDocument    = DocumentF (Int, Int) FullLocation
 

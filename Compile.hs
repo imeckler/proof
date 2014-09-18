@@ -1,17 +1,18 @@
-{-# LANGUAGE OverloadedStrings, TupleSections, LambdaCase #-}
+{-# LANGUAGE OverloadedStrings, TupleSections, LambdaCase, FlexibleContexts #-}
 module Compile (compile) where
 
-import Prelude hiding (div)
+import Prelude hiding (div, sequence, mapM)
 
 import qualified Data.Text as T
 import Control.Applicative
 import Control.Arrow
 import Data.Monoid
+import Data.Functor.Coproduct
 import Data.Traversable
 import qualified Data.Map as M
-import Control.Monad.State
-import Control.Monad.Except
-import Control.Monad.Identity
+import Control.Monad.State hiding (sequence, mapM)
+import Control.Monad.Except hiding (sequence, mapM)
+import Control.Monad.Identity hiding (sequence, mapM)
 
 import Types
 
@@ -20,74 +21,84 @@ import Types
 
 -- Things break if there's a label inside of mathmode.
 
-data PState = PState
+data CState = CState
   { labels :: M.Map Label (Int, Int)
-  , depth :: Int
   }
 
-type P a = StateT PState (ExceptT String Identity) a
+type C a = StateT CState (Except String) a
 
 labelString :: Label -> String
 labelString (Label s) = s
 
-{-
-secondM :: (a -> m b) -> (s, b) -> m (s, b)
-secondM f (x, y) = (x,) <$> f y
-
-maybeM :: (a -> m b) -> Maybe a -> m (Maybe b)
-maybeM f Nothing  = pure Nothing
-maybeM f (Just x) = Just <$> f x
--}
-insertErr mayLab v =
-  flip (maybe (return ())) mayLab $ \lab ->
-    (M.lookup lab <$> get) >>= \case
-      Nothing -> modify (M.insert lab v) -- TODO: Lensify
+insertErr :: Maybe Label -> (Int, Int) -> C ()
+insertErr mayLab v = void (traverse f mayLab) where
+  f lab =
+    (M.lookup lab . labels <$> get) >>= \case
+      Nothing -> modify (\s -> s {labels = M.insert lab v (labels s)}) -- TODO: Lensify
       Just _  -> throwError ("Duplicate label: " ++ labelString lab)
 
-collectLabels :: [DeclarationF (Maybe Label)] -> M.Map Label (Int, Int)
+collectLabels :: [DeclarationF () Ref] -> C [DeclarationF (Int, Int) Ref]
 collectLabels = sequence . zipWith goDecl [0..]
   where
-  goDecl :: Int -> DeclarationF (Maybe Label) -> P (DeclarationF (Int, Int)) -- M.Map Label (Int, Int)
-  goDecl i (Theorem lab kind name stmt prf) = do
+  goDecl :: Int -> DeclarationF () Ref -> C (DeclarationF (Int, Int) Ref) -- M.Map Label (Int, Int)
+  goDecl i (Theorem () lab kind name stmt prf) = do
     insertErr lab (0, i)
-    Theorem (0, i) kind name stmt <$> goProof 1 prf
+    Theorem (0, i) lab kind name stmt <$> goProof 1 prf
 
-  goDecl i (Definition lab name clauses) =
-    Definition (0, i) name clauses <$ insertErr lab (0, i)
+  goDecl i (Definition () lab name clauses) =
+    Definition (0, i) lab name clauses <$ insertErr lab (0, i)
 
-  goDecl i (CommentDecl lab comm) =
-    CommentDecl (0, i) comm <$ insertErr lab (0, i)
+  goDecl i (CommentDecl () lab comm) =
+    CommentDecl (0, i) lab comm <$ insertErr lab (0, i)
 
-  goProof _ p@(Simple _)  = pure p
+  goProof :: Int -> ProofF () Ref -> C (ProofF (Int, Int) Ref)
+  goProof _ (Simple tb)  = pure (Simple tb)
   goProof d (Steps steps) = fmap Steps . sequence $ zipWith (goStep d) [0..] steps
 
-  goStep i = traverse $ \lab -> do
-    d <- depth <$> get -- TODO: Rewrite using lens
-    insertErr lab (d, i)
-    (d, i)
+  goStep :: Int -> Int -> StepF () Ref -> C (StepF (Int, Int) Ref)
+  goStep d i (Cases () lab cases) = do
+    insertErr lab (d,i)
+    Cases (d,i) lab <$> mapM (traverse (goProof (d + 1))) cases
 
-  {-
-  goStep d i (Cases lab cases) = do
-    insertErr lab (d, i)
-    Cases (d,i) <$> mapM (traverse (goProof (d + 1))) cases
+  goStep d i (Let () lab defs bc) = do
+    insertErr lab (d,i)
+    Let (d,i) lab <$> (traverse . traverse . traverse) (goProof (d + 1)) defs
+                  <*> traverse (goSuchThat d) bc
 
-  goStep d i (Let lab defs bc) = do
-    insertErr lab (d, i)
-    Let (d,i) <$> mapM (traverse $ traverse (goProof (d + 1))) defs
-              <*> traverse (goSuchThat (d + 1)) bc
+  goStep d i (Suppose () lab assumps results prf) = do
+    insertErr lab (d,i)
+    Suppose (d,i) lab assumps results <$> traverse (goProof (d + 1)) prf
 
-  goStep d i (Suppose lab assumps results prf) =
-    insertErr lab (d, i)
-    Suppose (d,i) assumps results <$> traverse (goProof (d + 10)) prf
+  goStep d i (Take () lab defs bc) = do
+    insertErr lab (d,i)
+    Take (d,i) lab defs <$> traverse (goSuchThat d) bc
 
-  goStep d i (Take lab defs bc) = do
-    insertErr lab (d, i)
-    Take (d,i) defs <$> traverse (goSuchThat (d + 1)) bc
-  -}
+  goStep d i (Claim () lab cla prf) = do
+    insertErr lab (d,i)
+    Claim (d,i) lab cla <$> traverse (goProof (d + 1)) prf
+
+  goStep d i (CommentStep () lab comm) =
+    CommentStep (d,i) lab comm <$ insertErr lab (d,i)
+
+  goSuchThat :: Int -> SuchThatF () Ref -> C (SuchThatF (Int, Int) Ref)
+  goSuchThat d (SuchThat claims prf) =
+    SuchThat <$> (traverse . traverse . traverse $ goProof (d + 1)) claims
+             <*> traverse (goProof (d + 1)) prf
+
+-- Would be nice to have algebraic effects. This function only needs read
+-- and error, not full state.
+-- Anywho, beautiful example of the power of traversals.
+locate :: 
+  M.Map Label (Int,Int) -> DocumentF (Int, Int) Ref -> Except String LocatedDocument
+locate labs = traverse . traverse $ \r@(Ref lab) ->
+  case (M.lookup (Label lab) labs) of
+    Nothing  -> throwError $ "Refernce not found: " ++ lab
+    Just pos -> return (r, pos)
 
 indent :: Int -> T.Text -> T.Text
 indent n = T.unlines . map (T.replicate (2 * n) " " <>) . T.lines
 
+showT :: Show a => a -> T.Text
 showT = T.pack . show
 
 attrTag :: T.Text -> [(T.Text, T.Text)] -> [T.Text] -> T.Text
@@ -108,24 +119,24 @@ div = tag "div"
 paragraph :: T.Text -> T.Text
 paragraph = tag' "p" . pure
 
-compileComment :: Comment -> T.Text
+compileComment :: Comment FullLocation -> T.Text
 compileComment (Comment mayName comm) =
   div "comment"
-    (maybe id ((:) . div "name" . pure . T.pack) mayName
-      [div "node-content" [paragraph $ T.pack comm]])
+    (maybe id ((:) . div "name" . pure . compileTexBlock) mayName
+      [div "node-content" [paragraph $ compileTexBlock comm]])
 
-compileTheoremStatement :: TheoremStatement -> T.Text
+compileTheoremStatement :: TheoremStatement FullLocation -> T.Text
 compileTheoremStatement (AssumeProve assumps results) =
   div "theorem-statement" [
     tag' "h3" ["Assume"],
-    tag' "ul" (map (tag' "li" . pure . T.pack) assumps),
+    tag' "ul" (map (tag' "li" . pure . compileTexBlock) assumps),
     tag' "h3" ["Prove"],
-    tag' "ul" (map (tag' "li" . pure . T.pack) results)
+    tag' "ul" (map (tag' "li" . pure . compileTexBlock) results)
   ]
 
 maybeToList = maybe [] pure
 
-compileSuchThat :: SuchThat -> T.Text
+compileSuchThat :: Located SuchThatF -> T.Text
 compileSuchThat (SuchThat conds mayProof) =
   div "suchthat"
     (ul "conditions" (map compileMaybeJustified conds)
@@ -133,73 +144,107 @@ compileSuchThat (SuchThat conds mayProof) =
 
     {-
   where
-  
   compileCond (cond, mayLocalProof) =
     div "list-item"
       (div "statement" [T.pack cond] :
         maybeToList (compileProof <$> mayLocalProof))
 -}
 
+compileTexBlock :: TexBlock FullLocation -> T.Text
+compileTexBlock = mconcat . map (either T.pack compileLoc) . unTexBlock
+  where
+  compileLoc (Ref lab, (d, i)) =
+    attrTag "a" [("href", T.cons '#' (T.pack lab))] [
+      "$\\rangle" <> showT d <> "\\langle" <> showT i <> "$"
+    ]
+
+posToAttr :: (Int, Int) -> T.Text
+posToAttr (d, i) = showT d <> "," <> showT i
+
+nodeDiv :: (Int, Int) -> Maybe Label -> T.Text -> [T.Text] -> T.Text
+nodeDiv pos mayLabel className =
+  attrTag "div" $
+    ("data-pos", posToAttr pos)
+    : ("class", className)
+    : maybeToList (fmap (("id",) . T.pack . labelString) mayLabel)
+
 ul = tag "ul"
 li = tag "li"
 
-compileBinder name bindings suchThat =
-  div name (
-    ul "bindings" (map (li "binding" . pure . T.pack) bindings) :
-    maybeToList (compileSuchThat <$> suchThat)
-  )
-
+compileMaybeJustified :: MaybeJustifiedF (Int, Int) FullLocation -> T.Text
 compileMaybeJustified (stmt, mayJustification) =
   li "list-item"
-    (div "statement" [T.pack stmt] :
+    (div "statement" [compileTexBlock stmt] :
      maybeToList (compileProof <$> mayJustification))
 
-compileStep :: Step -> T.Text
-compileStep (Cases _ cases) = div "cases" (map compileCase cases) where
+compileStep :: Located StepF -> T.Text
+compileStep (Cases pos lab cases) = nodeDiv pos lab "cases" (map compileCase cases) where
   compileCase (desc, proof) =
-    div "case" [ div "case-description" [T.pack desc], compileProof proof ]
+    div "case" [
+      div "case-description" [compileTexBlock desc], compileProof proof
+    ]
 
-compileStep (Let _ bindings suchThat)  =
-  div "let" (
+compileStep (Let pos lab bindings suchThat)  =
+  nodeDiv pos lab "let" (
     ul "bindings" (map compileMaybeJustified bindings)
     : maybeToList (compileSuchThat <$> suchThat))
 
-compileStep (Take _ bindings suchThat) = compileBinder "take" bindings suchThat
-compileStep (Claim _ stmt proof)       =
-  div "claim"  (
-    div "statement" [T.pack stmt] : maybeToList (compileProof <$> proof))
+compileStep (Take pos lab bindings suchThat) =
+  nodeDiv pos lab "take" (
+    ul "bindings" (map (li "binding" . pure . compileTexBlock) bindings) :
+    maybeToList (compileSuchThat <$> suchThat)
+  )
 
-compileStep (Suppose _ assumps results mayProof) =
-  div "suppose" (
-    ul "assumptions" (map (li "list-item" . pure . T.pack) assumps)
-    : ul "results" (map (li "list-item" . pure . T.pack) results)
+compileStep (Claim pos lab stmt proof) =
+  nodeDiv pos lab "claim"  (
+    div "statement" [compileTexBlock stmt] : maybeToList (compileProof <$> proof))
+
+compileStep (Suppose pos lab assumps results mayProof) =
+  nodeDiv pos lab "suppose" (
+    ul "assumptions" (map (li "list-item" . pure . compileTexBlock) assumps)
+    : ul "results" (map (li "list-item" . pure . compileTexBlock) results)
     : maybeToList (compileProof <$> mayProof))
 
-compileStep (CommentStep _ comment) = compileComment comment
+-- TODO: Refactor code so this shares with compileComment
+compileStep (CommentStep pos lab (Comment mayName comm)) =
+  nodeDiv pos lab "comment"
+    (maybe id ((:) . div "name" . pure . compileTexBlock) mayName
+      [div "node-content" [paragraph $ compileTexBlock comm]])
 
-compileProof :: Proof -> T.Text
-compileProof (Simple proof) = div "proof simple-proof" [T.pack proof]
-compileProof (Steps steps) = div "proof steps-proof" (map compileStep steps)
+compileLocatedComment pos lab (Comment mayName comm) =
+  nodeDiv pos lab "comment"
+    (maybe id ((:) . div "name" . pure . compileTexBlock) mayName
+      [div "node-content" [paragraph $ compileTexBlock comm]])
 
-compileDecl :: Declaration -> T.Text
-compileDecl (Theorem _ kind name stmt proof) =
-  attrTag "div" [("class", "theorem"), ("data-thmkind", T.pack kind)]  [
-    div "name" [T.pack name],
+compileProof :: Located ProofF -> T.Text
+compileProof (Simple proof) = div "proof simple-proof" [compileTexBlock proof]
+compileProof (Steps steps)  = div "proof steps-proof" (map compileStep steps)
+
+compileDecl :: Located DeclarationF -> T.Text
+compileDecl (Theorem pos lab kind name stmt proof) =
+  attrTag "div" attrs [
+    div "name" [compileTexBlock name],
     compileTheoremStatement stmt,
     compileProof proof
   ]
+  where
+  attrs = ("class", "theorem") : ("data-thmkind", T.pack kind)
+          : ("data-pos", posToAttr pos)
+          : maybeToList (fmap (("id",) . T.pack . labelString) lab)
 
 compileDecl (Macros macros) =
   div "macros" [ "$$" <> T.pack macros <> "$$" ]
 
-compileDecl (Definition _ name clauses) =
-  div "definition"
-    [ div "name" [T.pack name] 
-    , div "node-content" (map (either T.pack compileComment) clauses)
+compileDecl (Definition pos lab name clauses) =
+  nodeDiv pos lab "definition"
+    [ div "name" [compileTexBlock name] 
+    , div "node-content" (map (coproduct compileTexBlock compileComment) clauses)
     ]
 
-compile :: Document -> T.Text
-compile doc = tag' "html" [
+compileDecl (CommentDecl pos lab comm) = compileLocatedComment pos lab comm
+
+toHtml :: LocatedDocument -> T.Text
+toHtml doc = tag' "html" [
     tag' "head" headContent,
     tag' "body" [
       T.intercalate "\n" $ map compileDecl doc
@@ -225,6 +270,11 @@ compile doc = tag' "html" [
     , "</script>"
     , "<script type='text/javascript' src='proof.js'></script>"
     ]
+
+compile :: RawDocument -> Except String T.Text
+compile doc = do
+  (doc', CState labs) <- runStateT (collectLabels doc) (CState M.empty)
+  toHtml <$> locate labs doc'
 
 {-
 tag' :: T.Text -> [T.Text] -> T.Text
