@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TupleSections #-}
 module Compile (compile) where
 
 import Prelude hiding (div)
@@ -6,26 +6,42 @@ import Prelude hiding (div)
 import qualified Data.Text as T
 import Control.Applicative
 import Data.Monoid
+import qualified Data.Map as M
+import Control.Monad.State
+import Control.Monad.Except
 
 import Types
 
 -- Consider allowing trailing commas or removing commas altogether
 -- as there's really no need for them.
 
+-- Things break if there's a label inside of mathmode.
+
+data PState = PState { }
+
+type P m a = StateT PState (ExcepT String m a)
+
+
+collectLabels :: [Declaration (Maybe Label)] -> M.Map Label (Int, Int)
+collectLabels = undefined
+  where goDecl :: Declaration (Maybe Label) -> M.Map Label (Int, Int)
+
 indent :: Int -> T.Text -> T.Text
 indent n = T.unlines . map (T.replicate (2 * n) " " <>) . T.lines
 
-tag :: T.Text -> T.Text -> [T.Text] -> T.Text
-tag tagName className children =
-  "<" <> tagName <> " class='" <> className <> "'>\n"
+showT = T.pack . show
+
+attrTag :: T.Text -> [(T.Text, T.Text)] -> [T.Text] -> T.Text
+attrTag tagName attrs children =
+  "<" <> tagName <> " " <> T.intercalate " " (map (\(k,v) -> k <> "=" <> showT v) attrs) <> ">\n"
   <> T.intercalate "\n" (map (indent 1) children)
   <> "</" <> tagName <> ">"
 
+tag :: T.Text -> T.Text -> [T.Text] -> T.Text
+tag tagName className = attrTag tagName [("class", className)]
+
 tag' :: T.Text -> [T.Text] -> T.Text
-tag' tagName children =
-  "<" <> tagName <> ">\n"
-  <> T.intercalate "\n" (map (indent 1) children)
-  <> "</" <> tagName <> ">"
+tag' tagName = attrTag tagName []
 
 div :: T.Text -> [T.Text] -> T.Text
 div = tag "div"
@@ -80,35 +96,35 @@ compileMaybeJustified (stmt, mayJustification) =
      maybeToList (compileProof <$> mayJustification))
 
 compileStep :: Step -> T.Text
-compileStep (Cases cases) = div "cases" (map compileCase cases) where
+compileStep (Cases _ cases) = div "cases" (map compileCase cases) where
   compileCase (desc, proof) =
     div "case" [ div "case-description" [T.pack desc], compileProof proof ]
 
-compileStep (Let bindings suchThat)  =
+compileStep (Let _ bindings suchThat)  =
   div "let" (
     ul "bindings" (map compileMaybeJustified bindings)
     : maybeToList (compileSuchThat <$> suchThat))
 
-compileStep (Take bindings suchThat) = compileBinder "take" bindings suchThat
-compileStep (Claim stmt proof)       =
+compileStep (Take _ bindings suchThat) = compileBinder "take" bindings suchThat
+compileStep (Claim _ stmt proof)       =
   div "claim"  (
     div "statement" [T.pack stmt] : maybeToList (compileProof <$> proof))
 
-compileStep (Suppose assumps results mayProof) =
+compileStep (Suppose _ assumps results mayProof) =
   div "suppose" (
     ul "assumptions" (map (li "list-item" . pure . T.pack) assumps)
     : ul "results" (map (li "list-item" . pure . T.pack) results)
     : maybeToList (compileProof <$> mayProof))
 
-compileStep (CommentStep comment) = compileComment comment
+compileStep (CommentStep _ comment) = compileComment comment
 
 compileProof :: Proof -> T.Text
 compileProof (Simple proof) = div "proof simple-proof" [T.pack proof]
 compileProof (Steps steps) = div "proof steps-proof" (map compileStep steps)
 
 compileDecl :: Declaration -> T.Text
-compileDecl (Theorem name stmt proof) =
-  div "theorem" [
+compileDecl (Theorem _ kind name stmt proof) =
+  attrTag "div" [("class", "theorem"), ("data-thmkind", T.pack kind)]  [
     div "name" [T.pack name],
     compileTheoremStatement stmt,
     compileProof proof
@@ -117,7 +133,7 @@ compileDecl (Theorem name stmt proof) =
 compileDecl (Macros macros) =
   div "macros" [ "$$" <> T.pack macros <> "$$" ]
 
-compileDecl (Definition name clauses) =
+compileDecl (Definition _ name clauses) =
   div "definition"
     [ div "name" [T.pack name] 
     , div "node-content" (map (either T.pack compileComment) clauses)
@@ -151,3 +167,17 @@ compile doc = tag' "html" [
     , "<script type='text/javascript' src='proof.js'></script>"
     ]
 
+{-
+tag' :: T.Text -> [T.Text] -> T.Text
+tag' tagName children =
+  "<" <> tagName <> ">\n"
+  <> T.intercalate "\n" (map (indent 1) children)
+  <> "</" <> tagName <> ">"
+-}
+{-
+tag :: T.Text -> T.Text -> [T.Text] -> T.Text
+tag tagName className children =
+  "<" <> tagName <> " class='" <> className <> "'>\n"
+  <> T.intercalate "\n" (map (indent 1) children)
+  <> "</" <> tagName <> ">"
+-}

@@ -59,7 +59,9 @@ executable proof
   -- Other library packages from which modules are imported.
   build-depends:       base >=4.7 && <4.8,
                        text >= 1.2,
-                       parsec >= 3.1.6
+                       parsec >= 3.1.6,
+                       containers >= 0.5.5.1,
+                       mtl >= 2.2.1
   
   -- Directories containing source files.
   -- hs-source-dirs:      

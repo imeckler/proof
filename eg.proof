@@ -39,3 +39,9 @@ theorem [|$\sqrt{2}$ is irrational|]
   , claim [| $2$ divides $m$ |] []
   ]
 
+lemma [|foo is bar|]
+  assume [[| foo|]]
+  prove [[| is bar|]]
+
+  [
+  ]
