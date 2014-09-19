@@ -177,9 +177,7 @@ macros = do
   Macros <$> literalText
   where literalText = symbol "[|" *> manyTill anyChar (try (symbol "|]"))
 
--- listOf p = between (symbol "[" *> whiteSpace) (symbol "]") ((p <* whiteSpace) `sepBy` symbol ",")
 document :: Parser RawDocument
 document = do
   many ((theorem <|> macros <|> definition) <* whiteSpace) <* eof
--- document = ((macros <|> theorem <|> definition <?> "top level declaration") `sepBy` whiteSpace) <* whiteSpace
 

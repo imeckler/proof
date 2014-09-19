@@ -22,6 +22,9 @@ category:            Language
 
 build-type:          Simple
 
+data-files:          src/js/proof.js,
+                     src/css/proof.css
+
 -- Extra files to be distributed with the package, such as examples or a 
 -- README.
 -- extra-source-files:  
@@ -46,8 +49,9 @@ executable proof
                        parsec >= 3.1.6,
                        containers >= 0.5.5.1,
                        mtl >= 2.2.1,
-                       comonad >= 4.2.2
-  
+                       comonad >= 4.2.2,
+                       optparse-applicative >= 0.10.0
+
   -- Directories containing source files.
   -- hs-source-dirs:      
   

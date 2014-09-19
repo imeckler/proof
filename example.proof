@@ -1,0 +1,42 @@
+definition (cancelation) [
+  (The cancellation of a $k$-tuple...),
+
+  comment (Motivation) (
+
+  )
+
+]
+
+theorem 
+  (assume
+
+  [
+
+  step (For any blah blah we have blah blah) [
+    cases [
+      case ($c \geq \frac{n}{2}$) [
+        \begin{align*}
+          \leng{\subst(w)}{S}
+          \geq 0 \\
+        \end{align*}
+      ],
+
+      case ($c < \frac{n}{2}$) [
+        text (Induction on s, the length of $w$),
+
+        cases [
+          case ($s = 0) [
+          ],
+
+          case ($s = 1$) [
+          ],
+
+          case ($s \geq 2$) [
+          ]
+        ]
+      ]
+    ]
+  ]
+]
+
+
