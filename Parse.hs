@@ -51,7 +51,10 @@ texBlock = TexBlock <$> do
        <|> Left <$> manyTill anyChar (lookAhead endOfChunk)
             
     where
-      verbatimStart = symbol "\\begin" *> char '{' *> manyTill (satisfy (/= '}')) (char '}')
+      verbatimStart = do
+        symbol "\\begin"
+        name <- char '{' *> manyTill (satisfy (/= '}')) (char '}')
+        guard $ name `elem` verbEnvs
       -- fix if too inefficient.
       endOfChunk =  try (void (symbol "\\gref" *> char '{'))
                 <|> try (void verbatimStart)
@@ -139,6 +142,10 @@ suppose =
              <*> listOf texBlock <* symbol "then" -- TODO: Need whitespace here before symbol?
              <*> listOf texBlock <* whiteSpace
              <*> optionMaybe (symbol "because" *> proof)
+
+-- TODO: Restructure parser for clearer parse-error messages. You have to
+-- commit to a particular type. E.g., if something deep in a `claim` fails,
+-- you'll get an error saying: unexpected "l", expecting "ases"
 
 step :: Parser (Raw StepF)
 step =  let_
