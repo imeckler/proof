@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings, TupleSections, LambdaCase, FlexibleContexts #-}
-module Compile (compile) where
+{-# LANGUAGE OverloadedStrings, TupleSections, LambdaCase, FlexibleContexts, NamedFieldPuns #-}
+module Compile (compile, Resources (..)) where
 
 import Prelude hiding (div, sequence, mapM)
 
@@ -245,8 +245,13 @@ compileDecl (Definition pos lab name clauses) =
 
 compileDecl (CommentDecl pos lab comm) = compileLocatedComment pos lab comm
 
-toHtml :: LocatedDocument -> T.Text
-toHtml doc = tag' "html" [
+data Resources = Resources
+  { cssFiles :: [T.Text]
+  , jsFiles  :: [T.Text]
+  }
+
+toHtml :: Resources -> LocatedDocument -> T.Text
+toHtml (Resources {cssFiles, jsFiles}) doc = tag' "html" [
     tag' "head" headContent,
     tag' "body" [
       T.intercalate "\n" $ map compileDecl doc
@@ -255,28 +260,28 @@ toHtml doc = tag' "html" [
   where
   css href = "<link rel='stylesheet' type='text/css' href='" <> href <> "'>"
   headContent =
-    [ css "proof.css"
-    , css "static/fonts/latinmodernroman_10regular_macroman/stylesheet.css"
-    , css "static/fonts/latinmodernroman_10bold_macroman/stylesheet.css"
-    , css "static/fonts/latinmodernroman_10italic_macroman/stylesheet.css"
-    , css "static/fonts/latinmodernromancaps_10regular_macroman/stylesheet.css"
-    , css "static/fonts/latinmodernromancaps_10regular_macroman/stylesheet.css"
-    , css "static/fonts/latinmodernromandemi_10regular_macroman/stylesheet.css"
-    , css "static/fonts/latinmodernromandemi_10oblique_macroman/stylesheet.css"
-    , "<script src='jquery.min.js'></script>"
-    , "<script type='text/javascript' src='http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>"
+    [ css "fonts/latinmodernroman_10regular_macroman/stylesheet.css"
+    , css "fonts/latinmodernroman_10bold_macroman/stylesheet.css"
+    , css "fonts/latinmodernroman_10italic_macroman/stylesheet.css"
+    , css "fonts/latinmodernromancaps_10regular_macroman/stylesheet.css"
+    , css "fonts/latinmodernromancaps_10regular_macroman/stylesheet.css"
+    , css "fonts/latinmodernromandemi_10regular_macroman/stylesheet.css"
+    , css "fonts/latinmodernromandemi_10oblique_macroman/stylesheet.css"
+    ] ++ 
+    map (tag' "style" . pure) cssFiles ++
+    [ "<script type='text/javascript' src='http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>"
     , "<script type='text/x-mathjax-config'>"
     , "  MathJax.Hub.Config({"
     , "    tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}"
     , "  });"
     , "</script>"
-    , "<script type='text/javascript' src='proof.js'></script>"
-    ]
+    ] ++
+    map (attrTag "script" [("type", "text/javascript")] . pure) jsFiles
 
-compile :: RawDocument -> Except String T.Text
-compile doc = do
+compile :: Resources -> RawDocument -> Except String T.Text
+compile res doc = do
   (doc', CState labs) <- runStateT (collectLabels doc) (CState M.empty)
-  toHtml <$> locate labs doc'
+  toHtml res <$> locate labs doc'
 
 {-
 tag' :: T.Text -> [T.Text] -> T.Text
