@@ -10,24 +10,67 @@ body {
   font-weight: bold;
 }
 
+.claim {
+  border-left: 3px solid black;
+  padding-left: 10px;
+  margin-bottom: 5px;
+  margin-top: 5px;
+}
+
 .comment .node-content {
   font-style: italic;
 }
 
+.comment .name {
+  font-weight: 500;
+  font-style: oblique;
+}
+
+.comment blockquote p {
+  background: #f9f9f9;
+  border-left: 5px solid #E94F1D;
+  padding-left:40px;
+  padding-top:15px;
+  padding-bottom:15px;
+  padding-right:15px;
+  /*
+  padding-left: 2.4rem;
+  padding-top:1rem;
+  padding-bottom:1rem;
+  padding-right:1rem;
+  */
+}
+
 .decl-header {
   cursor              : pointer;
-  font-weight         : bold;
   -webkit-user-select : none;
   -moz-user-select    : none;
   -ms-user-select     : none;
 }
 
 .decl-header h2 {
+  /* font-weight         : bold; */
+  font-size: 1.7em;
   display: inline-block;
 }
 
 .decl-header .name {
-  display: inline-block;
+  margin-left: 25px;
+  font-size: 1.5em;
+}
+
+.top-level > .node-content {
+  border-top: 1px solid black;
+  margin-top: 10px;
+  padding-top: 10px;
+  margin-left:25px;
+}
+
+.definition {
+  border-left: 5px solid #424242;
+  padding-left: 14px;
+  margin-top: 10px;
+  margin-bottom: 10px;
 }
 
 .proof .node-content {
@@ -53,12 +96,18 @@ body {
   font-family: 'Latin-Modern-Roman-Caps';
 }
 
+.theorem {
+  border-left: 5px solid #3299BB;
+  padding-left: 14px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
 .suchthat .list-header {
   font-family: 'Latin-Modern-Roman-Caps';
 }
 
 .node-header {
-  background-color: rgb(218, 217, 217);
   cursor: pointer;
 }
 

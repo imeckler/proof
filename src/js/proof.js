@@ -2,8 +2,6 @@ function toggleSection(elt) {
   var open = elt.data('open');
 }
 
-// Implement latex searching functionality
-
 function decorate(className, titleName, node) {
   var nodeName = node.children('.name');
 
@@ -33,20 +31,6 @@ function decorate(className, titleName, node) {
 
   content.css('display', 'none');
 }
-
-function decorateComments() {
-  $('.comment').each(function(i){
-    decorate('comment', '', $(this));
-  });
-}
-
-/*
-function decorateTheorems() {
-  $('.theorem').each(function(i){
-    decorate('theorem', 'Theorem', $(this));
-  });
-}
-*/
 
 function decorateStep(step) {
   var statement = step.children('.statement');
@@ -144,28 +128,53 @@ function decorateSuchThats() {
 
 function decorateDefinitions() {
   $('.definition').each(function() {
-    var defn     = $(this);
-    var name     = defn.children('.name');
-    var contents = defn.children('.contents');
+    var defn    = $(this);
+    var name    = defn.children('.name');
+    var content = defn.children('.node-content');
 
     var header = $('<div class="decl-header">');
+    defn.addClass('top-level');
+
     header.append($('<h2>Definition: </h2>'), name);
     defn.prepend(header);
 
-    contents.toggleClass('closed');
+    content.toggleClass('closed');
     header.click(function(){
-      contents.toggleClass('closed');
+      content.toggleClass('closed');
     });
   })
 }
 
+function decorateComments() {
+  $('.comment').each(function() {
+    var comment     = $(this);
+    var nodeContent = comment.children('.node-content');
+    var blockQuote  = $('<blockquote>');
+    blockQuote.append(nodeContent.contents());
+    nodeContent.append(blockQuote);
+  });
+}
+
 function decorateTheorems() {
   $('.theorem').each(function() {
-    var theorem = $(this);
-    var name    = theorem.children('.name');
+    var theorem   = $(this);
+    var name      = theorem.children('.name');
+    var statement = theorem.children('.theorem-statement');
+    var proof     = theorem.children('.proof');
+
     var header  = $('<div class="decl-header">');
+    var content = $('<div class="node-content">');
+
+    theorem.addClass('top-level');
+
+    content.append(statement, proof);
     header.append($('<h2>Theorem: </h2>'), name);
-    theorem.prepend(header);
+    theorem.append(header, content);
+
+    content.toggleClass('closed');
+    header.click(function(){
+      content.toggleClass('closed');
+    });
   });
 }
 
@@ -177,6 +186,7 @@ $(function(){
   MathJax.Hub.Queue(decorateSuchThats);
   MathJax.Hub.Queue(decorateDefinitions);
   MathJax.Hub.Queue(decorateTheorems);
+  MathJax.Hub.Queue(decorateComments);
 /*
   MathJax.Hub.Queue(decorateComments);
   MathJax.Hub.Queue(decorateSteps);

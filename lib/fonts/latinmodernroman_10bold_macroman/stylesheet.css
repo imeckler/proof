@@ -1,10 +1,7 @@
 @font-face {
     font-family: 'Latin-Modern-Roman';
     src: url('lmroman10-bold-webfont.eot');
-    src: url('lmroman10-bold-webfont.eot?#iefix') format('embedded-opentype'),
-         url('lmroman10-bold-webfont.woff') format('woff'),
-         url('lmroman10-bold-webfont.ttf') format('truetype'),
-         url('lmroman10-bold-webfont.svg#latin_modern_roman10_bold') format('svg');
+    src: url('lmroman10-bold-webfont.woff') format('woff');
     font-weight: bold;
     font-style: normal;
 }
