@@ -11,54 +11,8 @@ import Data.Functor.Coproduct
 
 import Data.Char (isSpace)
 
-type Parser a = forall s m u. (Stream s m Char) => ParsecT s u m a
-
 -- TODO: Make macros
 -- TODO: Implement scope checking for labels
-
-symbol :: String -> Parser String
-symbol s = string s <* spaces
-
-lineComment = (<?> "line comment") $ do
-  try (char '%') -- TODO: Why is this a try?
-  skipMany (satisfy (/= '\n'))
-
-
-simpleSpace = skipMany1 (satisfy isSpace) 
-whiteSpace = optional (skipMany (lineComment <|> simpleSpace) <?> "whitespace") where
-
-texBlock :: Parser (TexBlock Ref)
-texBlock = TexBlock <$> do
-  string "[|"
-  manyTill chunk (try (string "|]"))
-  where
-  verbEnvs = ["verbatim", "Verbatim", "lstlisting", "minted", "alltt"]
-  verbatimBlock = fmap Left $ do
-    begin <- symbol "\\begin"
-    name <- char '{' *> manyTill (satisfy (/= '}')) (char '}')
-    guard $ name `elem` verbEnvs
-    text <- manyTill anyChar (try . string $ "\\end{" ++ name ++ "}")
-    return (concat [begin, "{", name, "}", text, "\\end{", name, "}"])
-
-  reference = fmap Right . (<?> "Reference") $ do
-    try $ symbol "\\gref"
-    symbol "{"
-    ref <- manyTill (noneOf "%~#\\{") (char '}')
-    return (Ref ref)
-
-  chunk =  try verbatimBlock
-       <|> reference
-       <|> Left <$> manyTill anyChar (lookAhead endOfChunk)
-            
-    where
-      verbatimStart = do
-        symbol "\\begin"
-        name <- char '{' *> manyTill (satisfy (/= '}')) (char '}')
-        guard $ name `elem` verbEnvs
-      -- fix if too inefficient.
-      endOfChunk =  try (void (symbol "\\gref" *> char '{'))
-                <|> try (void verbatimStart)
-                <|> void (lookAhead (string "|]"))
 
 comment' :: Parser a -> Parser (a, Comment Ref)
 comment' p = do

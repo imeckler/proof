@@ -8,7 +8,13 @@ import Data.Functor.Coproduct
 newtype Ref   = Ref String deriving Show
 newtype Label = Label String deriving (Eq, Ord, Show)
 
-newtype TexBlock loc = TexBlock { unTexBlock :: [Either String loc] }
+data Chunk loc
+  = Raw String
+  | Env String (TexBlock loc)
+  | Reference loc
+  deriving (Show, Functor
+
+newtype TexBlock loc = TexBlock { unTexBlock :: [Chunk loc] }
   deriving (Show, Functor, Traversable, Foldable)
 
 data SuchThatF a loc = SuchThat [MaybeJustifiedF a loc] (Maybe (ProofF a loc))
