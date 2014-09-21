@@ -44,14 +44,17 @@ executable proof
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:    
   
-  -- Other library packages from which modules are imported.
+  -- TODO: Try to get transformers to 0.4
   build-depends:       base >=4.7 && <4.8,
                        text >= 1.2,
                        parsec >= 3.1.6,
                        containers >= 0.5.5.1,
-                       mtl >= 2.2.1,
+                       mtl >= 2.2,
+                       transformers == 0.4.*,
+                       QuickCheck >= 2.7,
                        comonad >= 4.2.2,
                        optparse-applicative >= 0.10.0
+--                       HaTeX >= 3.13.1
 
   -- Directories containing source files.
   -- hs-source-dirs:      

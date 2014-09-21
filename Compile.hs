@@ -25,7 +25,8 @@ data CState = CState
   { labels :: M.Map Label (Int, Int)
   }
 
-type C a = StateT CState (Except String) a
+type Err = ExceptT String Identity
+type C a = StateT CState Err a
 
 labelString :: Label -> String
 labelString (Label s) = s
@@ -91,7 +92,7 @@ collectLabels = sequence . zipWith goDecl [0..]
 -- and error, not full state.
 -- Anywho, beautiful example of the power of traversals.
 locate :: 
-  M.Map Label (Int,Int) -> DocumentF (Int, Int) Ref -> Except String LocatedDocument
+  M.Map Label (Int,Int) -> DocumentF (Int, Int) Ref -> Err LocatedDocument
 locate labs = traverse . traverse $ \r@(Ref lab) ->
   case (M.lookup (Label lab) labs) of
     Nothing  -> throwError $ "Refernce not found: " ++ lab
@@ -157,7 +158,7 @@ compileTexBlock = mconcat . map (either T.pack compileLoc) . unTexBlock
   where
   compileLoc (Ref lab, (d, i)) =
     attrTag "a" [("href", T.cons '#' (T.pack lab))] [
-      "$\\rangle" <> showT d <> "\\langle" <> showT i <> "$"
+      "$\\langle" <> showT d <> "\\rangle" <> showT i <> "$"
     ]
 
 posToAttr :: (Int, Int) -> T.Text
@@ -260,16 +261,16 @@ toHtml (Resources {cssFiles, jsFiles}) doc = tag' "html" [
   where
   css href = "<link rel='stylesheet' type='text/css' href='" <> href <> "'>"
   headContent =
-    [ css "fonts/latinmodernroman_10regular_macroman/stylesheet.css"
-    , css "fonts/latinmodernroman_10bold_macroman/stylesheet.css"
-    , css "fonts/latinmodernroman_10italic_macroman/stylesheet.css"
-    , css "fonts/latinmodernromancaps_10regular_macroman/stylesheet.css"
-    , css "fonts/latinmodernromancaps_10regular_macroman/stylesheet.css"
-    , css "fonts/latinmodernromandemi_10regular_macroman/stylesheet.css"
-    , css "fonts/latinmodernromandemi_10oblique_macroman/stylesheet.css"
+    [ css "lib/fonts/latinmodernroman_10regular_macroman/stylesheet.css"
+    , css "lib/fonts/latinmodernroman_10bold_macroman/stylesheet.css"
+    , css "lib/fonts/latinmodernroman_10italic_macroman/stylesheet.css"
+    , css "lib/fonts/latinmodernromancaps_10regular_macroman/stylesheet.css"
+    , css "lib/fonts/latinmodernromancaps_10regular_macroman/stylesheet.css"
+    , css "lib/fonts/latinmodernromandemi_10regular_macroman/stylesheet.css"
+    , css "lib/fonts/latinmodernromandemi_10oblique_macroman/stylesheet.css"
     ] ++ 
     map (tag' "style" . pure) cssFiles ++
-    [ "<script type='text/javascript' src='http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>"
+    [ "<script type='text/javascript' src='lib/js/MathJax/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>"
     , "<script type='text/x-mathjax-config'>"
     , "  MathJax.Hub.Config({"
     , "    tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}"
@@ -278,7 +279,7 @@ toHtml (Resources {cssFiles, jsFiles}) doc = tag' "html" [
     ] ++
     map (attrTag "script" [("type", "text/javascript")] . pure) jsFiles
 
-compile :: Resources -> RawDocument -> Except String T.Text
+compile :: Resources -> RawDocument -> Err T.Text
 compile res doc = do
   (doc', CState labs) <- runStateT (collectLabels doc) (CState M.empty)
   toHtml res <$> locate labs doc'

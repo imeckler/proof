@@ -1,5 +1,6 @@
 macros [|
   \newcommand{\bz}{\mathbb{Z}}
+  \newcommand{\bq}{\mathbb{Q}}
 |]
 
 definition [|irrational|] [

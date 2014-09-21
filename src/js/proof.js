@@ -2,6 +2,13 @@ function toggleSection(elt) {
   var open = elt.data('open');
 }
 
+function locationLabel(node) {
+  var pos = node.attr('data-pos').split(',');
+  var d = pos[0], i = pos[1];
+  // TODO: Call Mathjax after this function
+  return $('<div class="location-label">$' + '\\langle' + d + '\\rangle' + i + '$</div>');
+}
+
 function decorate(className, titleName, node) {
   var nodeName = node.children('.name');
 
@@ -126,6 +133,13 @@ function decorateSuchThats() {
   });
 }
 
+function wrapWithLocation(node) {
+  var wrapper = $('<div class="wrapper">');
+  node.replaceWith(wrapper);
+  wrapper.append(locationLabel(node), node);
+  console.log(wrapper);
+}
+
 function decorateDefinitions() {
   $('.definition').each(function() {
     var defn    = $(this);
@@ -137,6 +151,8 @@ function decorateDefinitions() {
 
     header.append($('<h2>Definition: </h2>'), name);
     defn.prepend(header);
+
+    wrapWithLocation(defn);
 
     content.toggleClass('closed');
     header.click(function(){
@@ -171,6 +187,10 @@ function decorateTheorems() {
     header.append($('<h2>Theorem: </h2>'), name);
     theorem.append(header, content);
 
+    var wrapper = $('<div class="wrapper">');
+    theorem.replaceWith(wrapper);
+    wrapper.append(locationLabel(theorem), theorem);
+
     content.toggleClass('closed');
     header.click(function(){
       content.toggleClass('closed');
@@ -187,6 +207,7 @@ $(function(){
   MathJax.Hub.Queue(decorateDefinitions);
   MathJax.Hub.Queue(decorateTheorems);
   MathJax.Hub.Queue(decorateComments);
+  MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
 /*
   MathJax.Hub.Queue(decorateComments);
   MathJax.Hub.Queue(decorateSteps);

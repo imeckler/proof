@@ -44,6 +44,9 @@ main = do
     Right doc -> do
       res <- loadResources
       case runExcept (compile res doc) of
-        Left err -> putStrLn err
-        Right docTxt -> T.putStrLn docTxt
-
+        Left err     -> putStrLn err
+        Right docTxt -> T.writeFile (outputPath filePath) docTxt
+  where
+  outputPath     = (++ ".html") . stripExtension
+  stripExtension = reverse . tail' . dropWhile (/= '.') . reverse
+    where tail' = \case {[] -> []; (_:xs) -> xs}
