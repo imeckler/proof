@@ -10,7 +10,8 @@ module Parse.Common (
 ) where
 
 import Types
-import Text.Parsec
+import Text.Parsec hiding (satisfy, label)
+import qualified Text.Parsec as P
 import Data.Char (isSpace)
 import Control.Applicative hiding (many, (<|>), optional)
 import Control.Monad
@@ -20,10 +21,10 @@ type Parser = Parsec String ()
 lineComment :: Parser ()
 lineComment = (<?> "line comment") $ do
   try (char '%') -- TODO: Why is this a try?
-  skipMany (satisfy (/= '\n'))
+  skipMany (P.satisfy (/= '\n'))
 
 simpleSpace :: Parser ()
-simpleSpace = skipMany1 (satisfy isSpace) 
+simpleSpace = skipMany1 (P.satisfy isSpace) 
 
 whiteSpace :: Parser ()
 whiteSpace = optional (skipMany (lineComment <|> simpleSpace) <?> "whitespace") where
