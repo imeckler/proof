@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 module Parse.Latex where
 
-import Parse.Common hiding (texBlock)
+import Parse.Common
 import Data.Char
 import Latex
 
@@ -27,23 +27,24 @@ command = do
   specials      = "'(),.-\"!^$&#{}%~|/:;=[]\\` "
   commandChar c = isAsciiLower c || isAsciiUpper c
 
-  cmdArgs :: Parser (Maybe [Arg])
-  cmdArgs =  try (const (Just []) <$> string "{}")
-        <|> (Just <$> many1 cmdArg)
-        <|> return Nothing
-    where
-    -- TODO: Suppose [ ] args
-    cmdArg =  between (char '{') (char '}') (FixArg <$> block)
-          <|> between (char '[') (char ']') (FixArg <$> block)
+cmdArgs :: Parser (Maybe [Arg])
+cmdArgs =  try (const (Just []) <$> string "{}")
+      <|> (Just <$> many1 cmdArg)
+      <|> return Nothing
+  where
+  -- TODO: Suppose [ ] args
+  cmdArg =  between (char '{') (char '}') (FixArg <$> block)
+        <|> between (char '[') (char ']') (FixArg <$> block)
 
 -- TODO: Environment with args
 env :: Parser Chunk
 env = do
   begin <- symbol "\\begin"
   name  <- char '{' *> many (satisfy (/= '}')) <* char '{'
+  args  <- cmdArgs
   inner <- block
   symbol "\\end" *> symbol "{" *> symbol name *> symbol "}"
-  return (Env name inner)
+  return (Env name args inner)
 
 braced = Braced <$> between (symbol "{") (symbol "}") block
 

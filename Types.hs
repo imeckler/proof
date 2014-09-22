@@ -4,7 +4,9 @@ module Types where
 import Data.Foldable
 import Data.Traversable
 import Data.Functor.Coproduct
-import qualified Tex
+import qualified DecoratedTex as Tex
+-- TODO: Delete import of LaTeX
+import Text.LaTeX.Base.Parser
 
 newtype Label = Label String deriving (Eq, Ord, Show)
 

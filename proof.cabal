@@ -53,8 +53,8 @@ executable proof
                        transformers == 0.4.*,
                        QuickCheck >= 2.7,
                        comonad >= 4.2.2,
-                       optparse-applicative >= 0.10.0
---                       HaTeX >= 3.13.1
+                       optparse-applicative >= 0.10.0,
+                       HaTeX >= 3.13.1
 
   -- Directories containing source files.
   -- hs-source-dirs:      

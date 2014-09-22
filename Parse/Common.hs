@@ -14,7 +14,6 @@ import Text.Parsec
 import Data.Char (isSpace)
 import Control.Applicative hiding (many, (<|>), optional)
 import Control.Monad
-import qualified Tex
 
 type Parser = Parsec String ()
 

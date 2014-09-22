@@ -8,7 +8,7 @@ data Arg
 
 data Chunk
   = Raw String
-  | Env String Block
+  | Env String (Maybe [Arg]) Block
   | Braced Block
   | Command String (Maybe [Arg]) -- TODO: Support different kinds of args properly.
   deriving (Show)
