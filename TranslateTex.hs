@@ -11,8 +11,12 @@ import Control.Monad.Except
 import Data.Functor.Coproduct
 -- import Control.Applicative
 import Utils
-import Parse.Common
 import Prelude hiding (take)
+import qualified Data.Text as T
+import Control.Applicative hiding (many, satisfy, (<|>))
+import Text.Parsec hiding (label, satisfy)
+import qualified Control.Arrow as A
+import Control.Monad.Identity
 
 type TexParser loc = Parsec [Chunk loc] ()
 
@@ -21,10 +25,10 @@ tok = tokenPrim show (\p _ _ -> p)
 withInput s p = do { s0 <- getInput; setInput s; x <- p; setInput s0; return x }
 
 -- Primitive Chunk parsers
-env       :: Show loc => TexParser loc (String, Maybe [Arg loc], Block loc)
-namedEnv  :: Show loc => String -> TexParser loc (Maybe [Arg loc], Block loc)
+env       :: Show loc => TexParser loc (String, [Arg loc], Block loc)
+namedEnv  :: Show loc => String -> TexParser loc ([Arg loc], Block loc)
 command   :: Show loc => TexParser loc (String, Maybe [Arg loc])
-raw       :: Show loc => TexParser loc String
+raw       :: Show loc => TexParser loc T.Text
 reference :: Show loc => TexParser loc loc
 braced    :: Show loc => TexParser loc (Block loc)
 anyChunk  :: Show loc => TexParser loc (Chunk loc)
@@ -44,7 +48,7 @@ satisfy p      = tok $ \c -> if p c then Just c else Nothing
 
 -- Latex structure parsers
 label = tok $ \case
-  Command "label" (Just [FixArg (Block [Raw l])]) -> Just (Label l)
+  Command "label" (Just [FixArg (Block [Raw l])]) -> Just (Label (T.unpack l))
   _                                               -> Nothing
 
 optLabel = optionMaybe label
@@ -73,12 +77,9 @@ simpleSection keyword p = do
 labelAndStatement :: TexParser Ref (Maybe Label, TheoremStatement Ref)
 labelAndStatement = (,) <$> optLabel <*> statement
   where
-  statement = do
-    ("suppose", Nothing, Block as) <- env
-    assumps                        <- withInput as $ many item
-    ("then", Nothing, Block rs)    <- env
-    results                        <- withInput rs $ many item
-    return (AssumeProve assumps results)
+  statement =
+    AssumeProve <$> simpleSection "suppose" (many item)
+                <*> simpleSection "then" (many item)
 
 item = satisfy (== NoArgCmd "item") >> Block <$> many (satisfy (/= NoArgCmd "item"))
 
@@ -154,6 +155,9 @@ document = do
   preamble <- many (satisfy (\case { Env "document" _ _ -> False; _ -> True }))
   decls    <- many (definition <|> theorem)
   return (Macros (Block preamble) : decls)
+
+translate :: Block Ref -> Err RawDocument
+translate = ExceptT . Identity . A.left show . parse document "" . unBlock -- TODO: Source name
 
 type Err = Except String
 

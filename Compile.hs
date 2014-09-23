@@ -15,6 +15,7 @@ import Control.Monad.Except hiding (sequence, mapM)
 import Control.Monad.Identity hiding (sequence, mapM)
 
 import Types
+import DecoratedTex
 
 -- Consider allowing trailing commas or removing commas altogether
 -- as there's really no need for them.
@@ -153,8 +154,8 @@ compileSuchThat (SuchThat conds mayProof) =
         maybeToList (compileProof <$> mayLocalProof))
 -}
 
-compileTexBlock :: TexBlock FullLocation -> T.Text
-compileTexBlock = mconcat . map (either T.pack compileLoc) . unTexBlock
+compileTexBlock :: Block FullLocation -> T.Text
+compileTexBlock = mconcat . map (either T.pack compileLoc) . unBlock
   where
   compileLoc (Ref lab, (d, i)) =
     attrTag "a" [("href", T.cons '#' (T.pack lab))] [

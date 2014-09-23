@@ -41,6 +41,7 @@ decorate = fmap Block . mapM goChunk . flatten
   flatten L.TeXEmpty       = []
   flatten t                = [t]
 
+  -- TODO: Add support for various commands a la pandoc
   goChunk (L.TeXRaw s)                   = pure $ Raw s
   goChunk (L.TeXComm "ref" [L.FixArg r]) = Reference . Ref <$> extractLabel r
   goChunk (L.TeXComm s args)             = Command (strip s) . Just <$> goArgs args
@@ -59,23 +60,3 @@ decorate = fmap Block . mapM goChunk . flatten
   goArg (L.OptArg t) = OptArg <$> decorate t
   goArg _            = error "DecoratedTex.decorate: arg translation not implemented"
 
-{-
-decorate :: L.Block -> Except String (Block Ref)
-decorate = fmap Block . mapM goChunk . L.unBlock where
-
-  goChunk (L.Raw s)               = pure $ Raw s
-  goChunk (L.Env name args block) = Env (strip name) <$> goArgs args
-                                                     <*> decorate block
-  goChunk (L.Braced block)        = Braced <$> decorate block
-
-  goChunk (L.Command "ref" (Just [L.FixArg (L.Block [L.Raw lab])])) =
-    pure $ Reference (Ref (strip lab))
-
-  goChunk (L.Command "ref" _) = throwError "ref expects exactly one argument"
-  goChunk (L.Command c args) = Command (strip c) <$> goArgs args
-
-  goArgs = traverse (mapM goArg)
-
-  goArg (L.FixArg b) = FixArg <$> decorate b
-  goArg (L.OptArg b) = OptArg <$> decorate b
--}
