@@ -3,13 +3,14 @@ module Parse where
 
 import Types
 import Utils
-import Text.Parsec hiding (label)
+-- import Text.Parsec hiding (label)
 import Control.Monad
 import Prelude hiding (take)
-import Control.Applicative hiding (many, (<|>), optional)
+-- import Control.Applicative hiding (many, (<|>), optional)
 import Data.Functor.Coproduct
-
 import Data.Char (isSpace)
+import DecoratedTex
+import Parse.Common
 
 -- TODO: Make macros
 -- TODO: Implement scope checking for labels

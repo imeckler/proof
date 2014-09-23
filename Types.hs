@@ -5,21 +5,9 @@ import Data.Foldable
 import Data.Traversable
 import Data.Functor.Coproduct
 import qualified DecoratedTex as Tex
--- TODO: Delete import of LaTeX
-import Text.LaTeX.Base.Parser
 
 newtype Label = Label String deriving (Eq, Ord, Show)
 
-{-
-data Chunk loc
-  = Raw String
-  | Env String (TexBlock loc)
-  | Reference loc
-  deriving (Show, Functor
-
-newtype TexBlock loc = TexBlock { unTexBlock :: [Chunk loc] }
-  deriving (Show, Functor, Traversable, Foldable)
--}
 data SuchThatF a loc = SuchThat [MaybeJustifiedF a loc] (Maybe (ProofF a loc))
   deriving (Show)
 
@@ -66,7 +54,7 @@ data DeclarationF a loc
   = Theorem a NodeData String (Tex.Block loc) (TheoremStatement loc) (ProofF a loc)
   | Definition a NodeData (Tex.Block loc) [Coproduct Tex.Block Comment loc]
   | CommentDecl a NodeData (Comment loc)
-  | Macros String
+  | Macros (Tex.Block loc)
   deriving (Show)
 
 type Location = (Int, Int)
