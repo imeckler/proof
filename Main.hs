@@ -10,8 +10,11 @@ import Control.Monad.Except
 import qualified Data.Text.IO as T
 import Options.Applicative hiding (Parser)
 import qualified Options.Applicative as O
-import Paths_proof (getDataFileName)
+import Text.LaTeX.Base.Parser
+import TranslateTex (translate)
 import DecoratedTex (decorate)
+import Paths_proof (getDataFileName)
+import Types
 
 data AppData = AppData 
   { filePath :: FilePath
@@ -33,35 +36,36 @@ loadResources =
             <*> mapM readFile' ["lib/js/jquery.min.js", "src/js/proof.js"]
   where readFile' = getDataFileName >=> T.readFile
 
-data Format = Proof | Tex
-fileFormat s = case ext s of { "proof" -> Just Proof; "tex" -> Just Tex; _ -> Nothing }
+data Format = Proof | Tex deriving (Show)
+
+fileFormat s = case ext s of { "proof" -> Right Proof; "tex" -> Right Tex; e -> Left e }
   where ext = reverse . takeWhile (/= '.') . reverse
 
+outputPath     = (++ ".html") . stripExtension
+stripExtension = reverse . tail' . dropWhile (/= '.') . reverse
+  where tail' = \case {[] -> []; (_:xs) -> xs}
+
 main' reader filePath = do
-  reader filePath >>= \case
-    Left err -> print err
+  fmap runExcept (reader filePath) >>= \case
+    Left err -> putStrLn err
     Right doc -> do
       res <- loadResources
       case runExcept (compile res doc) of
         Left err     -> putStrLn err
         Right docTxt -> T.writeFile (outputPath filePath) docTxt
 
-proofReader = parseFromFile document
-texReader filePath = do
-  tex <- left show <$> parseFromFile filePath
-  ExceptT (Identity tex) >>= decorate >>= translate
+proofReader :: FilePath -> IO (Except String RawDocument)
+proofReader = fmap (ExceptT . pure . left show)  . parseFromFile document
+
+texReader :: FilePath -> IO (Except String RawDocument)
+texReader = 
+  fmap (ExceptT . pure . left show >=> decorate >=> translate) . parseLaTeXFile
 
 main :: IO ()
 main = do
   AppData { filePath } <- execParser opts
-  parseFromFile document filePath >>= \case
-    Left err  -> print err
-    Right doc -> do
-      res <- loadResources
-      case runExcept (compile res doc) of
-        Left err     -> putStrLn err
-        Right docTxt -> T.writeFile (outputPath filePath) docTxt
-  where
-  outputPath     = (++ ".html") . stripExtension
-  stripExtension = reverse . tail' . dropWhile (/= '.') . reverse
-    where tail' = \case {[] -> []; (_:xs) -> xs}
+  case fileFormat filePath of
+    Right Proof -> main' proofReader filePath
+    Right Tex   -> main' texReader filePath
+    Left  e     -> putStrLn $ "Unknown file type: " ++ e
+

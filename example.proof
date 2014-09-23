@@ -23,7 +23,7 @@ theorem (root2irrat) [|$\sqrt{2}$ is irrational|]
         take [
           [| $p, q \in \bz$ |]
         ] such that [
-          [| $p/q = \sqrt{2} |] because [| Assumed $\sqrt{2} \in \bq$, definition of $\bq$ |]
+          [| $p/q = \sqrt{2}$ |] because [| Assumed $\sqrt{2} \in \bq$, definition of $\bq$ |]
         ],
 
         let [

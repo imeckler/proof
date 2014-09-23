@@ -9,12 +9,10 @@ module Parse.Common (
   symbol
 ) where
 
-import Types
 import Text.Parsec hiding (satisfy, label)
 import qualified Text.Parsec as P
 import Data.Char (isSpace)
 import Control.Applicative hiding (many, (<|>), optional)
-import Control.Monad
 
 type Parser = Parsec String ()
 

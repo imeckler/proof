@@ -126,16 +126,16 @@ paragraph = tag' "p" . pure
 compileComment :: Comment FullLocation -> T.Text
 compileComment (Comment mayName comm) =
   div "comment"
-    (maybe id ((:) . div "name" . pure . compileTexBlock) mayName
-      [div "node-content" [paragraph $ compileTexBlock comm]])
+    (maybe id ((:) . div "name" . pure . compileBlock) mayName
+      [div "node-content" [paragraph $ compileBlock comm]])
 
 compileTheoremStatement :: TheoremStatement FullLocation -> T.Text
 compileTheoremStatement (AssumeProve assumps results) =
   div "theorem-statement" [
     tag' "h3" ["Assume"],
-    tag' "ul" (map (tag' "li" . pure . compileTexBlock) assumps),
+    tag' "ul" (map (tag' "li" . pure . compileBlock) assumps),
     tag' "h3" ["Prove"],
-    tag' "ul" (map (tag' "li" . pure . compileTexBlock) results)
+    tag' "ul" (map (tag' "li" . pure . compileBlock) results)
   ]
 
 maybeToList = maybe [] pure
@@ -154,13 +154,28 @@ compileSuchThat (SuchThat conds mayProof) =
         maybeToList (compileProof <$> mayLocalProof))
 -}
 
-compileTexBlock :: Block FullLocation -> T.Text
-compileTexBlock = mconcat . map (either T.pack compileLoc) . unBlock
-  where
-  compileLoc (Ref lab, (d, i)) =
+mconcatMap f = mconcat . map f
+
+compileBlock :: Block FullLocation -> T.Text
+compileBlock = mconcatMap compileChunk . unBlock where
+
+  compileChunk (Raw t) = t
+  compileChunk (Braced b) = "{" <> compileBlock b <> "}"
+  compileChunk (Env e args b) = T.concat
+    [ "\\begin{", T.pack e, "}"
+    , mconcatMap compileArg args
+    , compileBlock b
+    ]
+  compileChunk (Command c args) = T.concat
+    [ "\\", T.pack c, maybe "{}" (mconcatMap compileArg) args ]
+
+  compileChunk (Reference (Ref lab, (d, i))) =
     attrTag "a" [("href", T.cons '#' (T.pack lab))] [
       "$\\langle" <> showT d <> "\\rangle" <> showT i <> "$"
     ]
+
+  compileArg (FixArg b) = "{" <> compileBlock b <> "}"
+  compileArg (OptArg b) = "[" <> compileBlock b <> "]"
 
 posToAttr :: (Int, Int) -> T.Text
 posToAttr (d, i) = showT d <> "," <> showT i
@@ -178,14 +193,14 @@ li = tag "li"
 compileMaybeJustified :: MaybeJustifiedF (Int, Int) FullLocation -> T.Text
 compileMaybeJustified (stmt, mayJustification) =
   li "list-item"
-    (div "statement" [compileTexBlock stmt] :
+    (div "statement" [compileBlock stmt] :
      maybeToList (compileProof <$> mayJustification))
 
 compileStep :: Located StepF -> T.Text
 compileStep (Cases pos lab cases) = nodeDiv pos lab "cases" (map compileCase cases) where
   compileCase (desc, proof) =
     div "case" [
-      div "case-description" [compileTexBlock desc], compileProof proof
+      div "case-description" [compileBlock desc], compileProof proof
     ]
 
 compileStep (Let pos lab bindings suchThat)  =
@@ -195,39 +210,39 @@ compileStep (Let pos lab bindings suchThat)  =
 
 compileStep (Take pos lab bindings suchThat) =
   nodeDiv pos lab "take" (
-    ul "bindings" (map (li "binding" . pure . compileTexBlock) bindings) :
+    ul "bindings" (map (li "binding" . pure . compileBlock) bindings) :
     maybeToList (compileSuchThat <$> suchThat)
   )
 
 compileStep (Claim pos lab stmt proof) =
   nodeDiv pos lab "claim"  (
-    div "statement" [compileTexBlock stmt] : maybeToList (compileProof <$> proof))
+    div "statement" [compileBlock stmt] : maybeToList (compileProof <$> proof))
 
 compileStep (Suppose pos lab assumps results mayProof) =
   nodeDiv pos lab "suppose" (
-    ul "assumptions" (map (li "list-item" . pure . compileTexBlock) assumps)
-    : ul "results" (map (li "list-item" . pure . compileTexBlock) results)
+    ul "assumptions" (map (li "list-item" . pure . compileBlock) assumps)
+    : ul "results" (map (li "list-item" . pure . compileBlock) results)
     : maybeToList (compileProof <$> mayProof))
 
 -- TODO: Refactor code so this shares with compileComment
 compileStep (CommentStep pos lab (Comment mayName comm)) =
   nodeDiv pos lab "comment"
-    (maybe id ((:) . div "name" . pure . compileTexBlock) mayName
-      [div "node-content" [paragraph $ compileTexBlock comm]])
+    (maybe id ((:) . div "name" . pure . compileBlock) mayName
+      [div "node-content" [paragraph $ compileBlock comm]])
 
 compileLocatedComment pos lab (Comment mayName comm) =
   nodeDiv pos lab "comment"
-    (maybe id ((:) . div "name" . pure . compileTexBlock) mayName
-      [div "node-content" [paragraph $ compileTexBlock comm]])
+    (maybe id ((:) . div "name" . pure . compileBlock) mayName
+      [div "node-content" [paragraph $ compileBlock comm]])
 
 compileProof :: Located ProofF -> T.Text
-compileProof (Simple proof) = div "proof simple-proof" [compileTexBlock proof]
+compileProof (Simple proof) = div "proof simple-proof" [compileBlock proof]
 compileProof (Steps steps)  = div "proof steps-proof" (map compileStep steps)
 
 compileDecl :: Located DeclarationF -> T.Text
 compileDecl (Theorem pos lab kind name stmt proof) =
   attrTag "div" attrs [
-    div "name" [compileTexBlock name],
+    div "name" [compileBlock name],
     compileTheoremStatement stmt,
     compileProof proof
   ]
@@ -236,13 +251,15 @@ compileDecl (Theorem pos lab kind name stmt proof) =
           : ("data-pos", posToAttr pos)
           : maybeToList (fmap (("id",) . T.pack . labelString) lab)
 
+-- TODO: MathJax requires us to put everything in math mode so
+-- input should be checked to make sure it is actually macros.
 compileDecl (Macros macros) =
-  div "macros" [ "$$" <> T.pack macros <> "$$" ]
+  div "macros" [ "$$" <> compileBlock macros <> "$$" ]
 
 compileDecl (Definition pos lab name clauses) =
   nodeDiv pos lab "definition"
-    [ div "name" [compileTexBlock name] 
-    , div "node-content" (map (coproduct compileTexBlock compileComment) clauses)
+    [ div "name" [compileBlock name] 
+    , div "node-content" (map (coproduct compileBlock compileComment) clauses)
     ]
 
 compileDecl (CommentDecl pos lab comm) = compileLocatedComment pos lab comm

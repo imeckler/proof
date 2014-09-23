@@ -5,15 +5,33 @@ import Types
 import Utils
 -- import Text.Parsec hiding (label)
 import Control.Monad
+import Control.Monad.Except
 import Prelude hiding (take)
--- import Control.Applicative hiding (many, (<|>), optional)
 import Data.Functor.Coproduct
 import Data.Char (isSpace)
 import DecoratedTex
 import Parse.Common
+import qualified Data.Text as T
+import Text.LaTeX.Base.Parser
+import Text.Parsec.Prim hiding (label)
 
 -- TODO: Make macros
 -- TODO: Implement scope checking for labels
+
+import System.IO.Unsafe
+
+usprint s = pure (unsafePerformIO (print s) `seq` ())
+
+-- TODO: Figure out bad line numbers
+texBlock :: Parsec String () (Block Ref)
+texBlock = (<?> "texBlock") $ do
+  symbol "[|"
+  etex <- parseLaTeX . T.pack <$> manyTill anyChar (try (symbol "|]"))
+  tex  <- either throwParseError pure etex
+  either fail pure (runExcept $ decorate tex)
+  where
+  throwParseError err = mkPT (\_ -> return (Consumed (return (Error err))))
+
 
 comment' :: Parser a -> Parser (a, Comment Ref)
 comment' p = do
@@ -129,7 +147,7 @@ theorem = do
 macros :: Parser (Raw DeclarationF)
 macros = do
   symbol "macros"
-  Macros <$> literalText
+  Macros . Block . pure . Raw . T.pack <$> literalText
   where literalText = symbol "[|" *> manyTill anyChar (try (symbol "|]"))
 
 document :: Parser RawDocument
