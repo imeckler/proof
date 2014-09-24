@@ -11,3 +11,5 @@ stripLeft = dropWhile isSpace
 strip :: String -> String
 strip = stripRight . stripLeft
 
+may :: b -> Maybe a -> (a -> b) -> b
+may x m f = maybe x f m

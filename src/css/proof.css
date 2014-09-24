@@ -17,8 +17,12 @@ body {
   margin-top: 5px;
 }
 
+.comment {
+  max-width: 800px;
+}
+
 .comment .node-content {
-  font-style: italic;
+  /* font-style: italic; */
 }
 
 .comment .name {
@@ -74,8 +78,13 @@ body {
   display: inline-block;
 }
 
+.emph {
+  font-style: italic;
+}
+
 .location-label {
   display        : inline-block;
+  width          : 30px;
   vertical-align : top;
   margin-right   : 10px;
   margin-left    : 10px;

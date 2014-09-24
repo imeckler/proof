@@ -10,13 +10,12 @@ import Types
 import Control.Monad.Except
 import Data.Functor.Coproduct
 -- import Control.Applicative
-import Utils
+import Data.Char
 import Prelude hiding (take)
 import qualified Data.Text as T
-import Control.Applicative hiding (many, satisfy, (<|>))
+import Control.Applicative hiding (many, (<|>))
 import Text.Parsec hiding (label, satisfy)
 import qualified Control.Arrow as A
-import Control.Monad.Identity
 
 type TexParser loc = Parsec [Chunk loc] ()
 
@@ -25,14 +24,15 @@ tok = tokenPrim show (\p _ _ -> p)
 withInput s p = do { s0 <- getInput; setInput s; x <- p; setInput s0; return x }
 
 -- Primitive Chunk parsers
-env       :: Show loc => TexParser loc (String, [Arg loc], Block loc)
-namedEnv  :: Show loc => String -> TexParser loc ([Arg loc], Block loc)
-command   :: Show loc => TexParser loc (String, Maybe [Arg loc])
-raw       :: Show loc => TexParser loc T.Text
-reference :: Show loc => TexParser loc loc
-braced    :: Show loc => TexParser loc (Block loc)
-anyChunk  :: Show loc => TexParser loc (Chunk loc)
-satisfy   :: Show loc => (Chunk loc -> Bool) -> TexParser loc (Chunk loc)
+env          :: Show loc => TexParser loc (String, [Arg loc], Block loc)
+namedEnv     :: Show loc => String -> TexParser loc ([Arg loc], Block loc)
+command      :: Show loc => TexParser loc (String, Maybe [Arg loc])
+namedCommand :: Show loc => String -> TexParser loc (Maybe [Arg loc])
+raw          :: Show loc => TexParser loc T.Text
+reference    :: Show loc => TexParser loc loc
+braced       :: Show loc => TexParser loc (Block loc)
+anyChunk     :: Show loc => TexParser loc (Chunk loc)
+satisfy      :: Show loc => (Chunk loc -> Bool) -> TexParser loc (Chunk loc)
 
 env        = tok $ \case { Env e args b -> Just (e, args, b); _ -> Nothing }
 namedEnv s = tok $ \case
@@ -133,6 +133,7 @@ theorem :: TexParser Ref (Raw DeclarationF)
 theorem = do
   (kind, name, b)    <- thmSection
   ((lab, stmt), prf) <- withInput b $ ((,) <$> labelAndStatement <*> proof)
+  texSpace
   return (Theorem () lab kind name stmt prf)
   where
   thmSection = tok $ \case
@@ -145,71 +146,42 @@ theorem = do
 definition :: TexParser Ref (Raw DeclarationF)
 definition = do
   (desc, (lab, clauses)) <- descSection "definition" ((,) <$> optLabel <*> many clause)
+  texSpace
   return (Definition () lab desc clauses)
   where
-  notComment = \case { Env "comment" _ _ -> False; _ -> True }
-  clause = (left . Block) <$> many (satisfy notComment)
+  notComment = \case { Command "comment" _ -> False; _ -> True }
+
+  comment = try $ do
+    args <- namedCommand "comment"
+    (name, comm) <- case args of
+      Just [OptArg lab, FixArg comm] -> return (Just lab, comm)
+      Just [FixArg comm]             -> return (Nothing, comm)
+      _                              -> fail "comment: Wrong number of arguments"
+    return (Comment name comm)
+
+  clause = (left . Block) <$> many1 (satisfy notComment)
+        <|> right <$> comment
+
+texSpace :: TexParser Ref ()
+texSpace = void (satisfy spaceChunk)
 
 document :: TexParser Ref (RawDocument)
 document = do
   preamble <- many (satisfy (\case { Env "document" _ _ -> False; _ -> True }))
-  decls    <- many (definition <|> theorem)
+  (_, Block body) <- namedEnv "document"
+  decls <- withInput body $ do
+    texSpace
+    many (definition <|> theorem)
+  texSpace
+  eof
   return (Macros (Block preamble) : decls)
 
-translate :: Block Ref -> Err RawDocument
-translate = ExceptT . Identity . A.left show . parse document "" . unBlock -- TODO: Source name
-
-type Err = Except String
+translate :: Monad m => Block Ref -> Err m RawDocument
+translate = ExceptT . return . A.left show . parse document "" . unBlock -- TODO: Source name
 
 pattern NoArgCmd name      = Command name Nothing
 pattern OneArgCmd name arg = Command name (Just [FixArg arg])
 pattern LabelCmd arg       = OneArgCmd "label" (Block [Raw arg])
-
-{-
-theoremName :: Maybe [Arg Ref] -> Err (Block Ref)
-theoremName =
-  maybe (throwError "Expected theorem name")
-        (\case { [FixArg b] -> return b;
-                 _          ->
-                throwError "Wrong number of arguments for theorem environment"})
-
-(<:>) x y = fmap (x:) y
-
-block :: Block Ref -> Err RawDocument
-block = block' . unBlock
-
 -- TODO: Error out when there's two labels in the block
 -- TODO: Check that raw whitespace as the first chunk doesn't screw it up
-statementAndLabel :: Block Ref -> Err (TheoremStatement Ref, NodeData)
-statementAndLabel (Block (LabelCmd lab : cs)) =
-  (, Just (Label $ strip lab)) <$> statement cs
-statementAndLabel (Block cs) = (, Nothing) <$> statement cs
 
--- TODO: Make more robust, support other kinds of statements
-statement :: [Chunk Ref] -> Err (TheoremStatement Ref)
-statement (Env "suppose" Nothing (Block as) : Env "then" Nothing (Block rs) : []) = 
-  AssumeProve <$> assumps as <*> results rs
-  where
-  itemList _ [] = pure []
-  itemList s (NoArgCmd "item" : (break (== NoArgCmd "item") -> (a, rest))) =
-    Block a <:> itemList s rest
-  itemList s _ = throwError ("Malformed list of " ++ s)
-
-  assumps = itemList "assumptions"
-  results = itemList "results"
-
-statement _ = throwError "Could not parse theorem statement"
-
-proof = undefined
-
-block' :: [Chunk Ref] -> Err RawDocument
-block' (Env e args b : Env "proof" Nothing prf : rest)
-  | e `elem` thmKinds = do
-      name        <- theoremName args
-      (stmt, lab) <- statementAndLabel b
-      p           <- proof prf
-      Theorem () lab e name stmt p <:> block' rest
-    -- TODO: Labels
-  where
-  thmKinds = ["theorem", "lemma"]
--}

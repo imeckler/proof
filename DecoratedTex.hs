@@ -5,7 +5,7 @@
 module DecoratedTex where
 
 import Prelude hiding (mapM)
-import Data.Foldable
+import Data.Foldable hiding (all)
 import Data.Traversable
 import Control.Monad.Except hiding (mapM)
 import Control.Applicative
@@ -33,7 +33,7 @@ data Arg loc
 newtype Block loc = Block { unBlock :: [Chunk loc] }
   deriving (Show, Functor, Foldable, Traversable, Eq)
 
-decorate :: L.LaTeX -> Except String (Block Ref)
+decorate :: (Monad m, Functor m) => L.LaTeX -> ExceptT String m (Block Ref)
 decorate = fmap Block . mapM goChunk . flatten
   where
   flatten (L.TeXSeq x y)   = flatten x ++ flatten y
@@ -59,4 +59,11 @@ decorate = fmap Block . mapM goChunk . flatten
   goArg (L.FixArg t) = FixArg <$> decorate t
   goArg (L.OptArg t) = OptArg <$> decorate t
   goArg _            = error "DecoratedTex.decorate: arg translation not implemented"
+
+spaceChunk :: Chunk loc -> Bool
+spaceChunk (Raw s)            = T.all isSpace s
+spaceChunk (Braced (Block b)) = all spaceChunk b
+spaceChunk (Env {})           = False
+spaceChunk (Command {})       = False
+spaceChunk (Reference _)      = False
 

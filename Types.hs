@@ -4,6 +4,7 @@ module Types where
 import Data.Foldable
 import Data.Traversable
 import Data.Functor.Coproduct
+import Control.Monad.Except
 import qualified DecoratedTex as Tex
 
 newtype Label = Label String deriving (Eq, Ord, Show)
@@ -70,3 +71,4 @@ type Located f = f (Int, Int) FullLocation
 type RawDocument        = DocumentF () Tex.Ref
 type LocatedDocument    = DocumentF (Int, Int) FullLocation
 
+type Err m = ExceptT String m

@@ -18,10 +18,6 @@ import Text.Parsec.Prim hiding (label)
 -- TODO: Make macros
 -- TODO: Implement scope checking for labels
 
-import System.IO.Unsafe
-
-usprint s = pure (unsafePerformIO (print s) `seq` ())
-
 -- TODO: Figure out bad line numbers
 texBlock :: Parsec String () (Block Ref)
 texBlock = (<?> "texBlock") $ do

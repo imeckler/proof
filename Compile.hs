@@ -1,4 +1,10 @@
-{-# LANGUAGE OverloadedStrings, TupleSections, LambdaCase, FlexibleContexts, NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings,
+             TupleSections,
+             LambdaCase,
+             FlexibleContexts,
+             NamedFieldPuns,
+             ViewPatterns,
+             ScopedTypeVariables #-}
 module Compile (compile, Resources (..)) where
 
 import Prelude hiding (div, sequence, mapM)
@@ -13,7 +19,7 @@ import qualified Data.Map as M
 import Control.Monad.State hiding (sequence, mapM)
 import Control.Monad.Except hiding (sequence, mapM)
 import Control.Monad.Identity hiding (sequence, mapM)
-
+import Utils
 import Types
 import DecoratedTex
 
@@ -26,23 +32,22 @@ data CState = CState
   { labels :: M.Map Label (Int, Int)
   }
 
-type Err = ExceptT String Identity
-type C a = StateT CState Err a
+type C m a = StateT CState (Err m) a
 
 labelString :: Label -> String
 labelString (Label s) = s
 
-insertErr :: Maybe Label -> (Int, Int) -> C ()
+insertErr :: (Monad m, Functor m) => Maybe Label -> (Int, Int) -> C m ()
 insertErr mayLab v = void (traverse f mayLab) where
   f lab =
     (M.lookup lab . labels <$> get) >>= \case
       Nothing -> modify (\s -> s {labels = M.insert lab v (labels s)}) -- TODO: Lensify
       Just _  -> throwError ("Duplicate label: " ++ labelString lab)
 
-collectLabels :: [DeclarationF () Ref] -> C [DeclarationF (Int, Int) Ref]
+collectLabels :: (Monad m, Functor m) => [DeclarationF () Ref] -> C m [DeclarationF (Int, Int) Ref]
 collectLabels = sequence . zipWith goDecl [0..]
   where
-  goDecl :: Int -> DeclarationF () Ref -> C (DeclarationF (Int, Int) Ref) -- M.Map Label (Int, Int)
+  goDecl :: (Monad m, Functor m) => Int -> DeclarationF () Ref -> C m (DeclarationF (Int, Int) Ref) -- M.Map Label (Int, Int)
   goDecl i (Theorem () lab kind name stmt prf) = do
     insertErr lab (0, i)
     Theorem (0, i) lab kind name stmt <$> goProof 1 prf
@@ -55,11 +60,11 @@ collectLabels = sequence . zipWith goDecl [0..]
 
   goDecl _ (Macros macros) = return (Macros macros)
 
-  goProof :: Int -> ProofF () Ref -> C (ProofF (Int, Int) Ref)
+  goProof :: (Monad m, Functor m) => Int -> ProofF () Ref -> C m (ProofF (Int, Int) Ref)
   goProof _ (Simple tb)  = pure (Simple tb)
   goProof d (Steps steps) = fmap Steps . sequence $ zipWith (goStep d) [0..] steps
 
-  goStep :: Int -> Int -> StepF () Ref -> C (StepF (Int, Int) Ref)
+  goStep :: (Monad m, Functor m) => Int -> Int -> StepF () Ref -> C m (StepF (Int, Int) Ref)
   goStep d i (Cases () lab cases) = do
     insertErr lab (d,i)
     Cases (d,i) lab <$> mapM (traverse (goProof (d + 1))) cases
@@ -84,7 +89,7 @@ collectLabels = sequence . zipWith goDecl [0..]
   goStep d i (CommentStep () lab comm) =
     CommentStep (d,i) lab comm <$ insertErr lab (d,i)
 
-  goSuchThat :: Int -> SuchThatF () Ref -> C (SuchThatF (Int, Int) Ref)
+  goSuchThat :: (Monad m, Functor m) => Int -> SuchThatF () Ref -> C m (SuchThatF (Int, Int) Ref)
   goSuchThat d (SuchThat claims prf) =
     SuchThat <$> (traverse . traverse . traverse $ goProof (d + 1)) claims
              <*> traverse (goProof (d + 1)) prf
@@ -92,8 +97,8 @@ collectLabels = sequence . zipWith goDecl [0..]
 -- Would be nice to have algebraic effects. This function only needs read
 -- and error, not full state.
 -- Anywho, beautiful example of the power of traversals.
-locate :: 
-  M.Map Label (Int,Int) -> DocumentF (Int, Int) Ref -> Err LocatedDocument
+locate :: (Monad m, Functor m) =>
+  M.Map Label (Int,Int) -> DocumentF (Int, Int) Ref -> Err m LocatedDocument
 locate labs = traverse . traverse $ \r@(Ref lab) ->
   case (M.lookup (Label lab) labs) of
     Nothing  -> throwError $ "Refernce not found: " ++ lab
@@ -107,9 +112,10 @@ showT = T.pack . show
 
 attrTag :: T.Text -> [(T.Text, T.Text)] -> [T.Text] -> T.Text
 attrTag tagName attrs children =
-  "<" <> tagName <> " " <> T.intercalate " " (map (\(k,v) -> k <> "=" <> showT v) attrs) <> ">\n"
+  "<" <> tagName <> sep <> T.intercalate " " (map (\(k,v) -> k <> "=" <> showT v) attrs) <> ">\n"
   <> T.intercalate "\n" (map (indent 1) children)
   <> "</" <> tagName <> ">"
+  where sep = case attrs of { [] -> ""; _ -> " " }
 
 tag :: T.Text -> T.Text -> [T.Text] -> T.Text
 tag tagName className = attrTag tagName [("class", className)]
@@ -123,59 +129,94 @@ div = tag "div"
 paragraph :: T.Text -> T.Text
 paragraph = tag' "p" . pure
 
-compileComment :: Comment FullLocation -> T.Text
+compileComment :: (Monad m, Applicative m) => Comment FullLocation -> Err m T.Text
 compileComment (Comment mayName comm) =
-  div "comment"
-    (maybe id ((:) . div "name" . pure . compileBlock) mayName
-      [div "node-content" [paragraph $ compileBlock comm]])
+  (\mayNameBlock commBlock ->
+    div "comment"
+      (maybe id ((:) . div "name" . pure) mayNameBlock
+        [div "node-content" [paragraph commBlock]]))
+  <$> traverse compileBlock mayName <*> compileBlock comm
 
-compileTheoremStatement :: TheoremStatement FullLocation -> T.Text
+compileTheoremStatement :: (Monad m, Applicative m) => TheoremStatement FullLocation -> Err m T.Text
 compileTheoremStatement (AssumeProve assumps results) =
-  div "theorem-statement" [
-    tag' "h3" ["Assume"],
-    tag' "ul" (map (tag' "li" . pure . compileBlock) assumps),
-    tag' "h3" ["Prove"],
-    tag' "ul" (map (tag' "li" . pure . compileBlock) results)
-  ]
+  (\as rs ->
+    div "theorem-statement" [
+      tag' "h3" ["Assume"],
+      tag' "ul" (map (tag' "li" . pure) as),
+      tag' "h3" ["Prove"],
+      tag' "ul" (map (tag' "li" . pure) rs)
+    ])
+  <$> mapM compileBlock assumps <*> mapM compileBlock results
 
 maybeToList = maybe [] pure
 
-compileSuchThat :: Located SuchThatF -> T.Text
+compileSuchThat :: (Monad m, Applicative m) => Located SuchThatF -> Err m T.Text
 compileSuchThat (SuchThat conds mayProof) =
-  div "suchthat"
-    (ul "conditions" (map compileMaybeJustified conds)
-    : maybeToList ((div "justification" . pure . compileProof) <$> mayProof))
+  (\cs p -> div "suchthat"
+      (ul "conditions" cs : maybeToList (div "justification" . pure <$> p)))
+  <$> mapM compileMaybeJustified conds <*> traverse compileProof mayProof
 
-    {-
-  where
-  compileCond (cond, mayLocalProof) =
-    div "list-item"
-      (div "statement" [T.pack cond] :
-        maybeToList (compileProof <$> mayLocalProof))
--}
+mconcatMap f  = mconcat . map f
+mconcatMapM f = liftM mconcat . sequence . map f
 
-mconcatMap f = mconcat . map f
+type CmdInterpreter m = Maybe [Arg FullLocation] -> Err m T.Text
 
-compileBlock :: Block FullLocation -> T.Text
-compileBlock = mconcatMap compileChunk . unBlock where
+compileBlock :: (Monad m, Applicative m) => Block FullLocation -> Err m T.Text
+compileBlock = mconcatMapM compileChunk . unBlock where
 
-  compileChunk (Raw t) = t
-  compileChunk (Braced b) = "{" <> compileBlock b <> "}"
-  compileChunk (Env e args b) = T.concat
-    [ "\\begin{", T.pack e, "}"
-    , mconcatMap compileArg args
-    , compileBlock b
-    ]
-  compileChunk (Command c args) = T.concat
-    [ "\\", T.pack c, maybe "{}" (mconcatMap compileArg) args ]
+  compileChunk (Raw t)        = return t
+  compileChunk (Braced b)     = fmap (\s -> "{" <> s <> "}") (compileBlock b)
 
-  compileChunk (Reference (Ref lab, (d, i))) =
+  compileChunk (Env e args b) = case M.lookup e specialEnvs of
+    Just interp -> interp args b
+    Nothing     -> 
+      fmap ((\x -> beg <> x <> end) . T.concat) $ sequence
+        [ compileArgs args
+        , compileBlock b
+        ]
+    where beg = "\\begin{" <> T.pack e <> "}"
+          end = "\\end{" <> T.pack e <> "}"
+
+  compileChunk (Command c args) = case M.lookup c specialCommands of
+    Nothing     -> fmap (\s -> "\\" <> T.pack c <> s) argStr
+    Just interp -> interp args
+    where argStr = maybe (return "") (\case { [] -> return "{}"; as -> compileArgs as }) args
+
+  compileChunk (Reference (Ref lab, (d, i))) = return $
     attrTag "a" [("href", T.cons '#' (T.pack lab))] [
       "$\\langle" <> showT d <> "\\rangle" <> showT i <> "$"
     ]
 
-  compileArg (FixArg b) = "{" <> compileBlock b <> "}"
-  compileArg (OptArg b) = "[" <> compileBlock b <> "]"
+  compileArg (FixArg b) = fmap (\x -> "{" <> x <> "}") (compileBlock b)
+  compileArg (OptArg b) = fmap (\x -> "[" <> x <> "]") (compileBlock b)
+
+  compileArgs = mconcatMapM compileArg
+
+  specialCommands = M.fromList
+    [ ("emph", emph)
+    ]
+    where
+    -- TODO: Check what \emph should do given no arguments
+    emph mayArgs = may (return "") mayArgs $ \case
+      []         -> return ""
+      [FixArg x] -> fmap (tag "span" "emph" . pure) (compileBlock x)
+      _          -> throwError "Macro \"\\emph\" takes at most one argument"
+
+  specialEnvs :: (Applicative m, Monad m) => M.Map String ([Arg FullLocation] -> Block FullLocation -> Err m T.Text)
+  specialEnvs = M.fromList
+    [("itemize", itemize)
+    ]
+    where
+    itemize _ = fmap (ul "itemize") . (mapM item <=< group) . skipSpace . unBlock where
+      item = fmap (\b -> tag' "li" [b]) . compileBlock
+
+      group []                                               = pure []
+      group (Command "item" _ : (break isItem -> (x, rest))) = (Block x :) <$> group rest
+      group _                                                = throwError "Unexpected text in itemize"
+
+      skipSpace = dropWhile spaceChunk
+      isItem = \case {Command "item" _ -> True; _ -> False}
+   
 
 posToAttr :: (Int, Int) -> T.Text
 posToAttr (d, i) = showT d <> "," <> showT i
@@ -190,62 +231,67 @@ nodeDiv pos mayLabel className =
 ul = tag "ul"
 li = tag "li"
 
-compileMaybeJustified :: MaybeJustifiedF (Int, Int) FullLocation -> T.Text
+compileMaybeJustified :: (Monad m, Applicative m) => MaybeJustifiedF (Int, Int) FullLocation -> Err m T.Text
 compileMaybeJustified (stmt, mayJustification) =
-  li "list-item"
-    (div "statement" [compileBlock stmt] :
-     maybeToList (compileProof <$> mayJustification))
+  (\stmtBlock justifBlock ->
+    (li "list-item"
+      (div "statement" [stmtBlock] : maybeToList justifBlock)))
+  <$> compileBlock stmt <*> traverse compileProof mayJustification
 
-compileStep :: Located StepF -> T.Text
-compileStep (Cases pos lab cases) = nodeDiv pos lab "cases" (map compileCase cases) where
+compileStep :: (Monad m, Applicative m) => Located StepF -> Err m T.Text
+compileStep (Cases pos lab cases) = nodeDiv pos lab "cases" <$> mapM compileCase cases where
   compileCase (desc, proof) =
-    div "case" [
-      div "case-description" [compileBlock desc], compileProof proof
-    ]
+    (\d p -> div "case" [div "case-description" [d], p])
+    <$> compileBlock desc <*> compileProof proof
 
 compileStep (Let pos lab bindings suchThat)  =
-  nodeDiv pos lab "let" (
-    ul "bindings" (map compileMaybeJustified bindings)
-    : maybeToList (compileSuchThat <$> suchThat))
+  (\bs st -> nodeDiv pos lab "let" (ul "bindings" bs : maybeToList st))
+  <$> mapM compileMaybeJustified bindings <*> traverse compileSuchThat suchThat
 
 compileStep (Take pos lab bindings suchThat) =
-  nodeDiv pos lab "take" (
-    ul "bindings" (map (li "binding" . pure . compileBlock) bindings) :
-    maybeToList (compileSuchThat <$> suchThat)
-  )
+  (\bs st -> nodeDiv pos lab "take" (
+      ul "bindings" (map (li "binding" . pure) bs) : maybeToList st))
+  <$> mapM compileBlock bindings <*> traverse compileSuchThat suchThat
+
 
 compileStep (Claim pos lab stmt proof) =
-  nodeDiv pos lab "claim"  (
-    div "statement" [compileBlock stmt] : maybeToList (compileProof <$> proof))
+  (\s prf -> nodeDiv pos lab "claim"  (div "statement" [s] : maybeToList prf))
+  <$> compileBlock stmt <*> traverse compileProof proof
 
 compileStep (Suppose pos lab assumps results mayProof) =
-  nodeDiv pos lab "suppose" (
-    ul "assumptions" (map (li "list-item" . pure . compileBlock) assumps)
-    : ul "results" (map (li "list-item" . pure . compileBlock) results)
-    : maybeToList (compileProof <$> mayProof))
+  (\as rs prf -> nodeDiv pos lab "suppose" (
+      ul "assumptions" (map (li "list-item" . pure) as)
+    : ul "results" (map (li "list-item" . pure) rs)
+    : maybeToList prf))
+  <$> mapM compileBlock assumps
+  <*> mapM compileBlock results
+  <*> traverse compileProof mayProof
 
 -- TODO: Refactor code so this shares with compileComment
 compileStep (CommentStep pos lab (Comment mayName comm)) =
+  (\n c ->
   nodeDiv pos lab "comment"
-    (maybe id ((:) . div "name" . pure . compileBlock) mayName
-      [div "node-content" [paragraph $ compileBlock comm]])
+    (maybe id ((:) . div "name" . pure) n
+      [div "node-content" [paragraph c]]))
+  <$> traverse compileBlock mayName
+  <*> compileBlock comm
 
 compileLocatedComment pos lab (Comment mayName comm) =
+  (\n c ->
   nodeDiv pos lab "comment"
-    (maybe id ((:) . div "name" . pure . compileBlock) mayName
-      [div "node-content" [paragraph $ compileBlock comm]])
+    (maybe id ((:) . div "name" . pure) n
+      [div "node-content" [paragraph c]]))
+  <$> traverse compileBlock mayName
+  <*> compileBlock comm
 
-compileProof :: Located ProofF -> T.Text
-compileProof (Simple proof) = div "proof simple-proof" [compileBlock proof]
-compileProof (Steps steps)  = div "proof steps-proof" (map compileStep steps)
+compileProof :: (Monad m, Applicative m) => Located ProofF -> Err m T.Text
+compileProof (Simple proof) = (\p -> div "proof simple-proof" [p]) <$> compileBlock proof
+compileProof (Steps steps)  = (div "proof steps-proof") <$> mapM compileStep steps
 
-compileDecl :: Located DeclarationF -> T.Text
+compileDecl :: (Monad m, Applicative m) => Located DeclarationF -> Err m T.Text
 compileDecl (Theorem pos lab kind name stmt proof) =
-  attrTag "div" attrs [
-    div "name" [compileBlock name],
-    compileTheoremStatement stmt,
-    compileProof proof
-  ]
+  (\n s prf -> attrTag "div" attrs [ div "name" [n], s, prf ])
+  <$> compileBlock name <*> compileTheoremStatement stmt <*> compileProof proof
   where
   attrs = ("class", "theorem") : ("data-thmkind", T.pack kind)
           : ("data-pos", posToAttr pos)
@@ -254,13 +300,12 @@ compileDecl (Theorem pos lab kind name stmt proof) =
 -- TODO: MathJax requires us to put everything in math mode so
 -- input should be checked to make sure it is actually macros.
 compileDecl (Macros macros) =
-  div "macros" [ "$$" <> compileBlock macros <> "$$" ]
+  (\ms -> div "macros" [ "$$\n" <> ms <> "$$" ])
+  <$> compileBlock macros 
 
 compileDecl (Definition pos lab name clauses) =
-  nodeDiv pos lab "definition"
-    [ div "name" [compileBlock name] 
-    , div "node-content" (map (coproduct compileBlock compileComment) clauses)
-    ]
+  (\n cs -> nodeDiv pos lab "definition" [ div "name" [n], div "node-content" cs ])
+  <$> compileBlock name <*> mapM (coproduct compileBlock compileComment) clauses
 
 compileDecl (CommentDecl pos lab comm) = compileLocatedComment pos lab comm
 
@@ -269,13 +314,14 @@ data Resources = Resources
   , jsFiles  :: [T.Text]
   }
 
-toHtml :: Resources -> LocatedDocument -> T.Text
-toHtml (Resources {cssFiles, jsFiles}) doc = tag' "html" [
+toHtml :: (Monad m, Applicative m) => Resources -> LocatedDocument -> Err m T.Text
+toHtml (Resources {cssFiles, jsFiles}) doc =
+  (\ds -> tag' "html" [
     tag' "head" headContent,
     tag' "body" [
-      T.intercalate "\n" $ map compileDecl doc
+      T.intercalate "\n" ds
     ]
-  ]
+  ]) <$> mapM compileDecl doc
   where
   css href = "<link rel='stylesheet' type='text/css' href='" <> href <> "'>"
   headContent =
@@ -288,31 +334,23 @@ toHtml (Resources {cssFiles, jsFiles}) doc = tag' "html" [
     , css "lib/fonts/latinmodernromandemi_10oblique_macroman/stylesheet.css"
     ] ++ 
     map (tag' "style" . pure) cssFiles ++
-    [ "<script type='text/javascript' src='lib/js/MathJax/MathJax.js?config=TeX-AMS-MML_HTMLorMML'></script>"
+    [ "<script type='text/javascript' src='lib/js/MathJax/MathJax.js?config=TeX-AMS_HTML'></script>"
     , "<script type='text/x-mathjax-config'>"
     , "  MathJax.Hub.Config({"
-    , "    tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]}"
+    , "    tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]},"
+    , "    'HTML-CSS': {"
+    , "      imageFont: null,"
+    , "      availableFonts: ['STIX', 'TeX', 'Latin-Modern'],"
+    , "      preferredFont: 'TeX',"
+    , "      webFont: 'TeX'"
+    , "    }"
     , "  });"
     , "</script>"
     ] ++
     map (attrTag "script" [("type", "text/javascript")] . pure) jsFiles
 
-compile :: Resources -> RawDocument -> Err T.Text
+compile :: (Monad m, Applicative m) => Resources -> RawDocument -> Err m T.Text
 compile res doc = do
   (doc', CState labs) <- runStateT (collectLabels doc) (CState M.empty)
-  toHtml res <$> locate labs doc'
+  locate labs doc' >>= toHtml res 
 
-{-
-tag' :: T.Text -> [T.Text] -> T.Text
-tag' tagName children =
-  "<" <> tagName <> ">\n"
-  <> T.intercalate "\n" (map (indent 1) children)
-  <> "</" <> tagName <> ">"
--}
-{-
-tag :: T.Text -> T.Text -> [T.Text] -> T.Text
-tag tagName className children =
-  "<" <> tagName <> " class='" <> className <> "'>\n"
-  <> T.intercalate "\n" (map (indent 1) children)
-  <> "</" <> tagName <> ">"
--}
