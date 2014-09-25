@@ -3,22 +3,21 @@
              LambdaCase,
              FlexibleContexts,
              NamedFieldPuns,
+             RecordWildCards,
              ViewPatterns,
              ScopedTypeVariables #-}
-module Compile (compile, Resources (..)) where
+module Compile (Resources(..), compile) where
 
 import Prelude hiding (div, sequence, mapM)
 
 import qualified Data.Text as T
 import Control.Applicative
-import Control.Arrow
 import Data.Monoid
 import Data.Functor.Coproduct
 import Data.Traversable
 import qualified Data.Map as M
 import Control.Monad.State hiding (sequence, mapM)
 import Control.Monad.Except hiding (sequence, mapM)
-import Control.Monad.Identity hiding (sequence, mapM)
 import Utils
 import Types
 import DecoratedTex
@@ -93,6 +92,11 @@ collectLabels = sequence . zipWith goDecl [0..]
   goSuchThat d (SuchThat claims prf) =
     SuchThat <$> (traverse . traverse . traverse $ goProof (d + 1)) claims
              <*> traverse (goProof (d + 1)) prf
+
+data Resources = Resources
+  { cssFiles :: [T.Text]
+  , jsFiles  :: [T.Text]
+  }
 
 -- Would be nice to have algebraic effects. This function only needs read
 -- and error, not full state.
@@ -309,13 +313,8 @@ compileDecl (Definition pos lab name clauses) =
 
 compileDecl (CommentDecl pos lab comm) = compileLocatedComment pos lab comm
 
-data Resources = Resources
-  { cssFiles :: [T.Text]
-  , jsFiles  :: [T.Text]
-  }
-
 toHtml :: (Monad m, Applicative m) => Resources -> LocatedDocument -> Err m T.Text
-toHtml (Resources {cssFiles, jsFiles}) doc =
+toHtml (Resources {..}) doc =
   (\ds -> tag' "html" [
     tag' "head" headContent,
     tag' "body" [
@@ -332,8 +331,9 @@ toHtml (Resources {cssFiles, jsFiles}) doc =
     , css "lib/fonts/latinmodernromancaps_10regular_macroman/stylesheet.css"
     , css "lib/fonts/latinmodernromandemi_10regular_macroman/stylesheet.css"
     , css "lib/fonts/latinmodernromandemi_10oblique_macroman/stylesheet.css"
-    ] ++ 
-    map (tag' "style" . pure) cssFiles ++
+    , css "css/proof.css"
+    ]
+    ++ map (tag' "style" . pure) cssFiles ++
     [ "<script type='text/javascript' src='lib/js/MathJax/MathJax.js?config=TeX-AMS_HTML'></script>"
     , "<script type='text/x-mathjax-config'>"
     , "  MathJax.Hub.Config({"
@@ -346,11 +346,13 @@ toHtml (Resources {cssFiles, jsFiles}) doc =
     , "    }"
     , "  });"
     , "</script>"
-    ] ++
-    map (attrTag "script" [("type", "text/javascript")] . pure) jsFiles
+    ]
+    ++ map (attrTag "script" [("type", "text/javascript")] . pure) jsFiles
 
-compile :: (Monad m, Applicative m) => Resources -> RawDocument -> Err m T.Text
+--TODO : remove monadio
+compile :: (Monad m, MonadIO m, Applicative m) => Resources -> RawDocument -> Err m T.Text
 compile res doc = do
+  liftIO $ print doc
   (doc', CState labs) <- runStateT (collectLabels doc) (CState M.empty)
-  locate labs doc' >>= toHtml res 
+  toHtml res =<< locate labs doc'
 

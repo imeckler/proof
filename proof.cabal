@@ -254,6 +254,7 @@ executable proof
   -- TODO: Try to get transformers to 0.4
   build-depends:       base >=4.7 && <4.8,
                        text >= 1.2,
+                       fsnotify >= 0.1.0.3,
                        parsec >= 3.1.6,
                        containers >= 0.5.5.1,
                        mtl >= 2.2,

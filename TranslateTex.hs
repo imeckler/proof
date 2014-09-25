@@ -47,25 +47,27 @@ anyChunk       = tok $ Just
 satisfy p      = tok $ \c -> if p c then Just c else Nothing
 
 -- Latex structure parsers
-label = tok $ \case
+label = (<?> "label") . tok $ \case
   Command "label" (Just [FixArg (Block [Raw l])]) -> Just (Label (T.unpack l))
   _                                               -> Nothing
 
 optLabel = optionMaybe label
 
-descSection keyword p = do
+descSection keyword p = (<?> keyword ++ " section") $ do
   (desc, inner) <- tok $ \case
     Command c (Just [FixArg desc, FixArg (Block inner)]) ->
       if c == keyword then Just (desc, inner) else Nothing
     _                                                    -> Nothing
-  x <- withInput inner p
+  x <- withInput inner (texSpace *> p <* (eof <?> "End of " ++ keyword ++ " section"))
+  texSpace
   return (desc, x)
 
 simpleSection keyword p = do
   inner <- tok $ \case
     Command c (Just [FixArg (Block b)]) -> if c == keyword then Just b else Nothing
     _                                   -> Nothing
-  withInput inner p
+  texSpace
+  withInput inner (texSpace *> p <* (eof <?> "End of " ++ keyword ++ " section"))
 
 {-
   envStep s p = do
@@ -75,7 +77,7 @@ simpleSection keyword p = do
 
 -- TODO: Get rid of pattern matches.
 labelAndStatement :: TexParser Ref (Maybe Label, TheoremStatement Ref)
-labelAndStatement = (,) <$> optLabel <*> statement
+labelAndStatement = (,) <$> optLabel <*> (statement <* texSpace)
   where
   statement =
     AssumeProve <$> simpleSection "suppose" (many item)
@@ -85,9 +87,10 @@ item = satisfy (== NoArgCmd "item") >> Block <$> many (satisfy (/= NoArgCmd "ite
 
 proof :: TexParser Ref (Raw ProofF)
 proof =  simpleSection "proof" proofInner
-     <|> simpleSection "simple" (Simple . Block <$> many anyChunk)
+--     <|> simpleSection "simple" (Simple . Block <$> many anyChunk)
   where
-  proofInner = Steps <$> many step
+  -- TODO: We'll see how this goes.
+  proofInner = (Steps <$> many step) <* eof -- <|> (Simple . Block <$> many anyChunk)
 
   cases = simpleSection "cases" (Cases () <$> optLabel <*> many oneCase)
     where oneCase = descSection "case" proofInner
@@ -114,6 +117,11 @@ proof =  simpleSection "proof" proofInner
   -- TODO: Decide on syntax for suppose
   -- suppose = undefined
 
+  supposeThen = do
+    (lab, supps) <- simpleSection "suppose" ((,) <$> optLabel <*> many item)
+    (ss
+    Suppose () 
+
   suchThat =
     simpleSection "suchthat" $
       SuchThat <$> many maybeJustified <*> optBecause
@@ -132,7 +140,7 @@ proof =  simpleSection "proof" proofInner
 theorem :: TexParser Ref (Raw DeclarationF)
 theorem = do
   (kind, name, b)    <- thmSection
-  ((lab, stmt), prf) <- withInput b $ ((,) <$> labelAndStatement <*> proof)
+  ((lab, stmt), prf) <- withInput b $ (texSpace *> ((,) <$> labelAndStatement <*> proof))
   texSpace
   return (Theorem () lab kind name stmt prf)
   where
@@ -144,14 +152,13 @@ theorem = do
   thmKinds = ["theorem", "lemma"]
 
 definition :: TexParser Ref (Raw DeclarationF)
-definition = do
+definition = (<?> "definition") $ do
   (desc, (lab, clauses)) <- descSection "definition" ((,) <$> optLabel <*> many clause)
-  texSpace
   return (Definition () lab desc clauses)
   where
   notComment = \case { Command "comment" _ -> False; _ -> True }
 
-  comment = try $ do
+  comment = (<?> "comment") . try $ do
     args <- namedCommand "comment"
     (name, comm) <- case args of
       Just [OptArg lab, FixArg comm] -> return (Just lab, comm)
@@ -163,7 +170,7 @@ definition = do
         <|> right <$> comment
 
 texSpace :: TexParser Ref ()
-texSpace = void (satisfy spaceChunk)
+texSpace = skipMany $ satisfy spaceChunk
 
 document :: TexParser Ref (RawDocument)
 document = do
@@ -171,7 +178,7 @@ document = do
   (_, Block body) <- namedEnv "document"
   decls <- withInput body $ do
     texSpace
-    many (definition <|> theorem)
+    many (definition <|> theorem) <* eof
   texSpace
   eof
   return (Macros (Block preamble) : decls)

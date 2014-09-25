@@ -11,6 +11,7 @@ import Control.Arrow
 import Control.Monad
 import Control.Monad.Except
 import Control.Monad.Catch
+import Control.Concurrent (threadDelay)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Options.Applicative hiding (Parser)
@@ -19,12 +20,14 @@ import TranslateTex (translate)
 import DecoratedTex (decorate)
 import Filesystem as F
 import Filesystem.Path.CurrentOS
+import System.FSNotify
 import Types
 import Paths_proof (getDataFileName)
 
 data AppData = AppData 
   { inputPath :: FilePath
   , outputDir :: Maybe FilePath
+  , watch     :: Bool
   }
 
 data Format = Proof | Tex deriving (Show)
@@ -42,15 +45,10 @@ opts = info (helper <*> optParser)
           short 'o' <>
           metavar "OUTPUTDIR" <>
           help "Path of output directory. Default is '.'"))
+    <*> switch (long "watch" <> short 'w' <> help "Recompile on file-change")
     where
     path :: Monad m => String -> m FilePath
     path = liftM fromString . str
-
-loadResources :: IO Resources
-loadResources =
-  Resources <$> mapM readDataFile ["src/css/proof.css"]
-            <*> mapM readDataFile ["lib/js/jquery.min.js", "src/js/proof.js"]
-  where readDataFile = getDataFileName >=> T.readFile
 
 fileFormat :: Monad m => FilePath -> Err m Format
 fileFormat s = case fromMaybe "no extension" (extension s) of 
@@ -79,7 +77,7 @@ copyDirectory = \src dst -> do
   copyError p  = throwError ("Error copying file \"" ++ show p ++ "\"")
 
   go :: (MonadIO m, MonadCatch m) => FilePath -> FilePath -> Err m ()
-  go src dst = do
+  go src dst = do 
     catch (liftIO $ createDirectory False dst')
       (\(_::IOError) -> throwError ("Directory \"" ++ show dst' ++ "\" already exists."))
     fs <- liftIO $ listDirectory src
@@ -90,28 +88,61 @@ copyDirectory = \src dst -> do
 
     where dst' = dst </> leafName src
 
+loadResources :: (MonadIO m, MonadCatch m, Applicative m) => Err m Resources
+loadResources =
+  Resources <$> mapM readDataFile ["src/css/proof.css"]
+            <*> mapM readDataFile ["lib/js/jquery.min.js", "src/js/proof.js"]
+  where
+  readDataFile = (`catch` (\(_::IOError) ->throwError "Could not read data files"))
+               . liftIO . (T.readFile <=< getDataFileName)
+
+pkgPath inputPath outputDir = outputDir </> addExtension (basename inputPath) "proofpkg"
+
 compileAndOutput :: (MonadIO m, MonadCatch m, Applicative m) => FilePath -> FilePath -> Err m ()
 compileAndOutput inputPath outputDir =
   fileFormat inputPath >>= \case
     Proof -> go proofReader
     Tex   -> go texReader
   where
-
+  getDataFilePath :: FilePath -> IO FilePath
+  getDataFilePath = fmap decodeString . getDataFileName . encodeString
   go reader = do
-    let p        = outputDir </> addExtension (basename inputPath) "proofpkg"
+    let p        = pkgPath inputPath outputDir
         htmlPath = p </> "index.html"
-    html <- join (compile <$> liftIO loadResources <*> reader inputPath)
-    -- TODO: Dangerous to remove directories
-    liftIO $ removeTree p
-    liftIO $ createDirectory False p
-    liftIO (getDataFileName "lib") >>= \l -> copyDirectory (decodeString l) p
-    liftIO $ T.writeFile (encodeString htmlPath) html
+    html <- join (compile <$> loadResources <*> reader inputPath)
+    -- TODO: Dangerous to remove directories. Remove when you merge
+
+    liftIO $ do
+      isDirectory p >>= flip when (removeTree p)
+      createDirectory False p
+
+    liftIO (getDataFilePath "lib") >>= \l -> copyDirectory l p
+    liftIO $ do
+      forM_ ["src/js/proof.js", "src/css/proof.css"] $ \q ->
+        getDataFilePath q >>= \q' -> copyFile q' (p </> filename q)
+      T.writeFile (encodeString htmlPath) html
+
+run inputPath outputDir =
+  runExceptT (compileAndOutput inputPath out) >>= \case
+    Left e  -> putStrLn e
+    Right _ -> return () 
+  where out = fromMaybe (directory inputPath) outputDir
 
 main :: IO ()
 main = do
-  AppData { inputPath, outputDir } <- execParser opts
-  let out = fromMaybe (directory inputPath) outputDir
-  runExceptT (compileAndOutput inputPath out) >>= \case
-    Left e -> putStrLn e
-    Right _ -> return ()
+  AppData { inputPath, outputDir, watch } <- execParser opts
+  run inputPath outputDir
+  when watch (setupWatch inputPath outputDir)
+  where
+  setupWatch inputPath outputDir =
+    withManager $ \wm -> void $ do
+      putStrLn "manger acquired"
+      watchDir wm (directory inputPath) fEvent $ \_ -> do
+        putStr "File changed. Recompiling..."
+        run inputPath outputDir
+        putStrLn "Done."
+      putStrLn "sleepin forever"
+      forever $ threadDelay maxBound
+    where
+    fEvent = \case { Modified p _ -> p == inputPath; _ -> False }
 

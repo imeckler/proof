@@ -1,7 +1,7 @@
 proof
 ====
 
-**Proof** is a markdown language for writing structured proofs which compiles to an HTML page. It is heavily inspired by the ideas of [Leslie Lamport](http://research.microsoft.com/en-us/um/people/lamport/pubs/lamport-how-to-write.pdf) and by type-theory based proof assistants (specifically [Coq](http://coq.inria.fr/) and [Agda](http://wiki.portal.chalmers.se/agda/pmwiki.php)). The aim and the promise of structured proofs is to make mathematics
+**Proof** is a markup language for writing structured proofs which compiles to an HTML page. It is heavily inspired by the ideas of [Leslie Lamport](http://research.microsoft.com/en-us/um/people/lamport/pubs/lamport-how-to-write.pdf) and by type-theory based proof assistants (specifically [Coq](http://coq.inria.fr/) and [Agda](http://wiki.portal.chalmers.se/agda/pmwiki.php)). The aim and the promise of structured proofs is to make mathematics
 
 - more easily checked for correctness.
 - easier to read and understand.
