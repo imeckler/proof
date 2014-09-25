@@ -1,0 +1,52 @@
+\newcommand{\bn}{\mathbb{N}}
+
+\begin{document}
+  
+  \definition{square-free}{
+      \label{squarefree}
+      Say an number $k \in \bn$ is \emph{square-free} if
+      the only square number dividing $k$ is equal to $1$.
+  }
+
+  \theorem{There are infinitely many prime numbers}{
+      \suppose{
+        \item There are finitely many primes.
+      }
+      \then{
+        \item Contradiction.
+      }
+
+      \proof{
+        \suppose{$n \in \bn$}
+        \then{
+          \item
+            For some $a, b \in \bn$ with $b$ square-free, we have
+            $n = a^2 b$.
+        } \because{
+          \let{
+            \item $a$ the largest number such that $a^2$ divides $n$ 
+            \item $b = \frac{n}{a^2}$.
+          }
+
+          \claim{$b$ is square-free}{
+            \suppose{There is some number $k$ such that $k^2$ divides $b$}
+            \then{$(k a)^2$ divides $n$}
+
+            \claim{Q.E.D.}{
+              If $k \neq 1$, then $k a > a$ contradicting the fact that
+              $a$ is the largest number such that $a^2$ divides $n$.
+              Thus $k = 1$ so by definition \ref{squarefree}, $b$ is
+              squarefree.
+            }
+          }
+
+%TODO: Counting lemma, sets surjection size lemma
+%TODO: Complete set of type theoretic primitives with \allof (i.e., sigma type)
+        \suppose{There are finitely many primes.}
+
+        \then{
+        }
+      }
+    }
+  }
+\end{document}
