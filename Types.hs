@@ -30,7 +30,11 @@ deriving instance Traversable (DeclarationF a)
 data Comment loc = Comment (Maybe (Tex.Block loc)) (Tex.Block loc)
   deriving (Show, Functor, Foldable, Traversable)
 
-data TheoremStatement loc = AssumeProve [Tex.Block loc] [Tex.Block loc]
+-- TODO: Clean this up. There needs to be a principled list of things
+-- here. Use types
+data TheoremStatement loc
+  = AssumeProve [Tex.Block loc] [Tex.Block loc]
+  | Prove (Tex.Block loc)
   deriving (Show, Functor, Foldable, Traversable)
 
 type MaybeJustifiedF a loc = (Tex.Block loc, Maybe (ProofF a loc))

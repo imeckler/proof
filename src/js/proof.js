@@ -82,7 +82,6 @@ function annotateWithNumbers(decls, level) {
 function decorateCaseBlocks(){
   $('.cases').each(function() {
     var block = $(this);
-    console.log('yo');
     block.prepend($('<div class="case-header">Cases:</div>'));
     // block.children('.case').each(function(i)
   });
@@ -132,6 +131,16 @@ function decorateSuchThats() {
   });
 }
 
+function decorateSupposes() {
+  $('.suppose').each(function() {
+    var suppose = $(this);
+    var assumptions = suppose.children('.assumptions');
+    var results     = suppose.children('.results');
+    assumptions.before($('<div class="list-header">Suppose:</div>'));
+    results.before($('<div class="list-header">Then:</div>'));
+  })
+}
+
 function wrapWithLocation(node) {
   var wrapper = $('<div class="wrapper">');
   node.replaceWith(wrapper);
@@ -169,6 +178,10 @@ function decorateComments() {
   });
 }
 
+function capitalize(s){
+  return s.charAt(0).toUpperCase() + s.substring(1);
+}
+
 function decorateTheorems() {
   $('.theorem').each(function() {
     var theorem   = $(this);
@@ -182,7 +195,8 @@ function decorateTheorems() {
     theorem.addClass('top-level');
 
     content.append(statement, proof);
-    header.append($('<h2>Theorem: </h2>'), name);
+    var title = capitalize(theorem.attr('data-thmkind'));
+    header.append($('<h2>' + title + ': </h2>'), name);
     theorem.append(header, content);
 
     var wrapper = $('<div class="wrapper">');
@@ -198,6 +212,7 @@ function decorateTheorems() {
 
 $(function(){
   MathJax.Hub.Queue(decorateCaseBlocks);
+  MathJax.Hub.Queue(decorateSupposes);
   MathJax.Hub.Queue(decorateTakes);
   MathJax.Hub.Queue(decorateLets);
   MathJax.Hub.Queue(decorateSuchThats);

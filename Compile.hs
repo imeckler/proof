@@ -142,6 +142,8 @@ compileComment (Comment mayName comm) =
   <$> traverse compileBlock mayName <*> compileBlock comm
 
 compileTheoremStatement :: (Monad m, Applicative m) => TheoremStatement FullLocation -> Err m T.Text
+compileTheoremStatement (Prove b) =
+  (\bl -> div "theorem-statement" [tag' "h3" ["Prove"], bl]) <$> compileBlock b
 compileTheoremStatement (AssumeProve assumps results) =
   (\as rs ->
     div "theorem-statement" [

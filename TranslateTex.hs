@@ -93,9 +93,11 @@ simpleSection keyword p = do
 labelAndStatement :: TexParser Ref (Maybe Label, TheoremStatement Ref)
 labelAndStatement = (,) <$> optLabel <*> (statement <* texSpace)
   where
-  statement =
+  statement = assumeProve <|> prove
+  assumeProve =
     AssumeProve <$> simpleSection "suppose" (many item)
                 <*> simpleSection "then" (many item)
+  prove = Prove <$> simpleSection "prove" (Block <$> many anyChunk)
 
 item = satisfy (== NoArgCmd "item") >> Block <$> many (satisfy (/= NoArgCmd "item"))
 

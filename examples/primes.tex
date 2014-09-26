@@ -73,7 +73,7 @@
         \claim{Q.E.D.}
       }
       \claim{$a \leq \sqrt{n}$}{\simple{
-        $$a \leq \sqrt{m} \leq \sqrt{n}$$
+        $$a = \sqrt{\frac{m}{b}} \leq \sqrt{m} \leq \sqrt{n}$$
         which follows from the previous claim and monotonicity of $\sqrt{-}$.
       }}
       \claim{
@@ -98,16 +98,11 @@
   }
 
   \theorem{There are infinitely many prime numbers}{
-    \suppose{
-      \item There are finitely many primes.
-    }
-    \then{
-      \item Contradiction.
-    }
+    \prove{For any $N \in \bn$, there are at least $N$ primes}
 
     \proof{
       \suppose{\item $n \in \bn$}
-      \then{\item $\pi(n) \geq \frac{1}{2} \log n$}
+      \then{\item $\pi(n) \geq \frac{1}{2} \log_2 n$}
       \because{
         \claim{$2^{\pi(n)} \sqrt{n} \geq n$}{
           \claim{$2^{\pi(n)} \sqrt{n} \geq \rs{\mathcal{P}(\Pi(n)) \times \Set{1, \hdots, \floor{\sqrt{n}}}}$}{
@@ -141,11 +136,16 @@
         \claim{Q.E.D.}{\simple{Algebra.}}
       }
 
+      \claim{$\pi(2^{2 N}) \geq N$}{
+        \simple{
+          $$\pi(2^{2 N}) \geq \frac{1}{2} \log_2 2^{2N} = N$$
+        }
+      }
+
       \claim{Q.E.D.}{
         \simple{
-          Since the function $n \mapsto \frac{1}{2} \log n$ goes
-          to infinity with $n$, so too does $\pi(n)$.
-          By \ref{pidef}, this implies there are infinitely many primes.
+          The total number of primes is at least $\pi(2^{2 N})$,
+          so by the previous claim, there are at least $N$ primes.
         }
       }
     }

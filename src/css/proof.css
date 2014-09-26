@@ -103,19 +103,15 @@ body {
   font-family: 'Latin-Modern-Roman-Caps';
 }
 
-.take {
-  background-color: #e8dcc5;
-  padding: 10px;
-  margin: 10px;
-
-  border-radius: 23px 23px 23px 23px;
-  -moz-border-radius: 23px 23px 23px 23px;
-  -webkit-border-radius: 23px 23px 23px 23px;
-  border: 2px solid #000000;
+.list-header {
+  font-family: 'Latin-Modern-Roman-Caps';
 }
 
-.take .list-header {
-  font-family: 'Latin-Modern-Roman-Caps';
+.suppose {
+  border-left: 3px solid black;
+  padding-left: 10px;
+  margin-bottom: 5px;
+  margin-top: 5px;
 }
 
 .theorem {
@@ -124,10 +120,6 @@ body {
   margin-top: 10px;
   margin-bottom: 10px;
   display: inline-block;
-}
-
-.suchthat .list-header {
-  font-family: 'Latin-Modern-Roman-Caps';
 }
 
 .node-header {
