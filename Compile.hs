@@ -341,7 +341,7 @@ toHtml (Resources {..}) doc =
     , "    tex2jax: {inlineMath: [['$','$'], ['\\\\(','\\\\)']]},"
     , "    'HTML-CSS': {"
     , "      imageFont: null,"
-    , "      availableFonts: ['STIX', 'TeX', 'Latin-Modern'],"
+    , "      availableFonts: ['TeX'],"
     , "      preferredFont: 'TeX',"
     , "      webFont: 'TeX'"
     , "    }"

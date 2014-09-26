@@ -180,6 +180,7 @@ definition = (<?> "definition") $ do
   where
   notComment = \case { Command "comment" _ -> False; _ -> True }
 
+  -- TODO: Eliminate the opt arg. Make it required.
   comment = (<?> "comment") . try $ do
     args <- namedCommand "comment"
     (name, comm) <- case args of
@@ -192,6 +193,11 @@ definition = (<?> "definition") $ do
   clause = (left . Block) <$> many1 (satisfy notComment)
         <|> right <$> comment
 
+topLevelComment :: TexParser Ref (Raw DeclarationF)
+topLevelComment = (<?> "comment") $ do
+  (desc, (lab, comm)) <- descSection "comment" ((,) <$> optLabel <*> many anyChunk)
+  return (CommentDecl () lab (Comment (Just desc) (Block comm)))
+
 texSpace :: TexParser Ref ()
 texSpace = skipMany $ satisfy spaceChunk
 
@@ -201,7 +207,7 @@ document = do
   (_, Block body) <- namedEnv "document"
   decls <- withInput body $ do
     texSpace
-    many (definition <|> theorem) <* eof
+    many (definition <|> theorem <|> topLevelComment) <* eof
   texSpace
   eof
   return (Macros (Block preamble) : decls)
