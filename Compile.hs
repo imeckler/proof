@@ -331,7 +331,6 @@ toHtml (Resources {..}) doc =
     , css "lib/fonts/latinmodernromancaps_10regular_macroman/stylesheet.css"
     , css "lib/fonts/latinmodernromandemi_10regular_macroman/stylesheet.css"
     , css "lib/fonts/latinmodernromandemi_10oblique_macroman/stylesheet.css"
-    , css "css/proof.css"
     ]
     ++ map (tag' "style" . pure) cssFiles ++
     [ "<script type='text/javascript' src='lib/js/MathJax/MathJax.js?config=TeX-AMS_HTML'></script>"

@@ -1,4 +1,9 @@
 \newcommand{\bn}{\mathbb{N}}
+\newcommand{\rs}[1]{\left|#1\right|}
+\newcommand{\ps}[1]{\left(#1\right)}
+\newcommand{\Set}[1]{\left\{{#1}\right\}}
+\newcommand{\floor}[1]{\left\lfloor{#1}\right\rfloor}
+\newcommand{\hdots}{\dots}
 
 \begin{document}
   
@@ -32,9 +37,9 @@
   \lemma{Factorization lemma}{
     \label{faclem}
     \suppose{
-      \item $m \in \bn$
+      \item $m, n \in \bn$
       \item $m \leq n$
-    } \then {
+    } \then{
       \item
         There exists $\Set{p_1, \hdots, p_k} \in \mathcal{P}(\Pi(n))$ and
         $a \leq \sqrt{n}$ such that
@@ -45,7 +50,7 @@
       \claim{For some $a, b \in \bn$ with $b$ square-free, we have $ba^2 = m$.}{
         \let{
           \item $a$ be the largest number such that $a^2$ divides $n$ 
-          \item $b = \frac{n}{a^2}$.
+          \item $b = \frac{n}{a^2}$
         }
         \claim{$b$ is square-free}{
           \take{\item $k \in \bn$} \suchthat{\item $k^2$ divides $b$}
@@ -63,7 +68,7 @@
               }}
             }
           }
-          \claim{Q.E.D.}{\simple{Definition of square-free \ref{squarefree}}}.
+          \claim{Q.E.D.}{\simple{Definition of square-free \ref{squarefree}}}
         }
         \claim{Q.E.D.}
       }

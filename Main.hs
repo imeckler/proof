@@ -136,12 +136,10 @@ main = do
   where
   setupWatch inputPath outputDir =
     withManager $ \wm -> void $ do
-      putStrLn "manger acquired"
       watchDir wm (directory inputPath) fEvent $ \_ -> do
         putStr "File changed. Recompiling..."
         run inputPath outputDir
         putStrLn "Done."
-      putStrLn "sleepin forever"
       forever $ threadDelay maxBound
     where
     fEvent = \case { Modified p _ -> p == inputPath; _ -> False }

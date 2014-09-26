@@ -9,6 +9,7 @@ import DecoratedTex
 import Types
 import Control.Monad.Except
 import Data.Functor.Coproduct
+import Data.Traversable
 -- import Control.Applicative
 import Data.Char
 import Prelude hiding (take)
@@ -51,7 +52,7 @@ label = (<?> "label") . tok $ \case
   Command "label" (Just [FixArg (Block [Raw l])]) -> Just (Label (T.unpack l))
   _                                               -> Nothing
 
-optLabel = optionMaybe label
+optLabel = optionMaybe label <* texSpace
 
 descSection keyword p = (<?> keyword ++ " section") $ do
   (desc, inner) <- tok $ \case
@@ -59,6 +60,18 @@ descSection keyword p = (<?> keyword ++ " section") $ do
       if c == keyword then Just (desc, inner) else Nothing
     _                                                    -> Nothing
   x <- withInput inner (texSpace *> p <* (eof <?> "End of " ++ keyword ++ " section"))
+  texSpace
+  return (desc, x)
+
+optInnerDescSection keyword p = (<?> keyword ++ " section") $ do
+  (desc, innerOpt) <- tok $ \case
+    Command c (Just [FixArg desc, FixArg (Block inner)]) ->
+      if c == keyword then Just (desc, Just inner) else Nothing
+    Command c (Just [FixArg desc]) ->
+      if c == keyword then Just (desc, Nothing) else Nothing
+    _ -> Nothing
+  x <- flip traverse innerOpt (\inner ->
+    withInput inner (texSpace *> p <* (eof <?> "End of " ++ keyword ++ " section")))
   texSpace
   return (desc, x)
 
@@ -91,23 +104,26 @@ proof =  simpleSection "proof" proofInner
   where
   proofInner = 
     (simpleSection "simple" (Simple . Block <$> many anyChunk) <* eof)
-    <|> ((Steps <$> many step) <* eof
+    <|> ((Steps <$> many step) <* eof)
 
   cases = simpleSection "cases" (Cases () <$> optLabel <*> many oneCase)
     where oneCase = descSection "case" proofInner
 
   -- TODO: Make claim proof optional
   claim = do
-    (desc, (lab, prf)) <- descSection "claim" ((,) <$> optLabel <*> proofInner)
-    return (Claim () lab desc (Just prf))
+--    (desc, (lab, prf)) <- descSection "claim" ((,) <$> optLabel <*> proofInner)
+--    return (Claim () lab desc (Just prf))
+    (desc, labPrf) <- optInnerDescSection "claim" ((,) <$> optLabel <*> proofInner)
+    return (Claim () (join $ fst <$> labPrf) desc (snd <$> labPrf))
 
   -- TODO: Decide what goes in/outside of section macros
   let_ = do
-    (lab, bindings) <- simpleSection "let" ((,) <$> optLabel <*> many maybeJustified)
+    -- TODO: Consider whther should be item or maybeJustified
+    (lab, bindings) <- simpleSection "let" ((,) <$> optLabel <*> many ((,Nothing) <$> item))
     Let () lab bindings <$> optionMaybe suchThat
 
   take = do
-    (lab, bindings) <- simpleSection "let" ((,) <$> optLabel <*> many item)
+    (lab, bindings) <- simpleSection "take" ((,) <$> optLabel <*> many item)
     Take () lab bindings <$> optionMaybe suchThat
 
   -- TODO: Make comment desc optional
@@ -128,13 +144,15 @@ proof =  simpleSection "proof" proofInner
     simpleSection "suchthat" $
       SuchThat <$> many maybeJustified <*> optBecause
 
-  maybeJustified = do
+  maybeJustified =
+    (,) <$> item <*> optBecause
+    {-
     satisfy (== NoArgCmd "item")
     (,) <$> (Block <$> manyTill anyChunk 
                           (try (void (satisfy (== NoArgCmd "item"))
                             <|> void (namedCommand "because"))))
         <*> optBecause
-
+-}
   optBecause = optionMaybe (simpleSection "because" proofInner)
 
   step = cases <|> claim <|> supposeThen <|> let_ <|> take <|> comment

@@ -101,7 +101,6 @@ function decorateProofs() {
 
     content.toggleClass('closed');
     header.click(function() {
-      console.log('yo');
       content.toggleClass('closed');
     });
   });
@@ -137,7 +136,6 @@ function wrapWithLocation(node) {
   var wrapper = $('<div class="wrapper">');
   node.replaceWith(wrapper);
   wrapper.append(locationLabel(node), node);
-  console.log(wrapper);
 }
 
 function decorateDefinitions() {
@@ -200,7 +198,6 @@ function decorateTheorems() {
 
 $(function(){
   MathJax.Hub.Queue(decorateCaseBlocks);
-  MathJax.Hub.Queue(decorateProofs);
   MathJax.Hub.Queue(decorateTakes);
   MathJax.Hub.Queue(decorateLets);
   MathJax.Hub.Queue(decorateSuchThats);
@@ -208,6 +205,7 @@ $(function(){
   MathJax.Hub.Queue(decorateTheorems);
   MathJax.Hub.Queue(decorateComments);
   MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
+  MathJax.Hub.Queue(decorateProofs);
 /*
   MathJax.Hub.Queue(decorateComments);
   MathJax.Hub.Queue(decorateSteps);
