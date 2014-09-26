@@ -8,43 +8,139 @@
       the only square number dividing $k$ is equal to $1$.
   }
 
-  \theorem{There are infinitely many prime numbers}{
-      \suppose{
-        \item There are finitely many primes.
-      }
-      \then{
-        \item Contradiction.
-      }
+  \definition{$\pi(n)$}{
+    \label{pidef}
+    For $n \in \bn$, let $\pi(n)$ be the number of primes less
+    than or equal to $n$.
+  }
 
-      \proof{
-        \suppose{$n \in \bn$}
-        \then{
-          \item
-            For some $a, b \in \bn$ with $b$ square-free, we have
-            $n = a^2 b$.
-        } \because{
-          \let{
-            \item $a$ the largest number such that $a^2$ divides $n$ 
-            \item $b = \frac{n}{a^2}$.
-          }
+  \definition{$\Pi(n)$}{
+    \label{bigpin}
+    For $n \in \bn$, let $\Pi(n)$ be the set of primes less
+    than or equal to $n$.
 
-          \claim{$b$ is square-free}{
-            \suppose{There is some number $k$ such that $k^2$ divides $b$}
-            \then{$(k a)^2$ divides $n$}
+    \comment[NB]{
+      Note that $\rs{\Pi(n)} = \pi(n)$.
+    }
+  }
 
-            \claim{Q.E.D.}{
-              If $k \neq 1$, then $k a > a$ contradicting the fact that
-              $a$ is the largest number such that $a^2$ divides $n$.
-              Thus $k = 1$ so by definition \ref{squarefree}, $b$ is
-              squarefree.
+  \definition{$f : \mathcal{P}(\Pi(n)) \times \Set{1, \hdots, \floor{\sqrt{n}}} \to \bn$}{
+    Define $f$ by
+    $$ f\ps{\Set{p_1, \dots, p_k}, b} = p_1 \cdots p_k \cdot b $$
+  }
+
+  \lemma{Factorization lemma}{
+    \label{faclem}
+    \suppose{
+      \item $m \in \bn$
+      \item $m \leq n$
+    } \then {
+      \item
+        There exists $\Set{p_1, \hdots, p_k} \in \mathcal{P}(\Pi(n))$ and
+        $a \leq \sqrt{n}$ such that
+        $p_1 \cdots p_k \cdot a^2 = m$.
+    }
+
+    \proof{
+      \claim{For some $a, b \in \bn$ with $b$ square-free, we have $ba^2 = m$.}{
+        \let{
+          \item $a$ be the largest number such that $a^2$ divides $n$ 
+          \item $b = \frac{n}{a^2}$.
+        }
+        \claim{$b$ is square-free}{
+          \take{\item $k \in \bn$} \suchthat{\item $k^2$ divides $b$}
+
+          \claim{$k = 1$}{
+            \cases{
+              \case{$k = 0$}{\simple{This case is impossible since $0$ divides no number}}
+
+              \case{$k = 1$}{\simple{Reflexivity.}}
+              
+              \case{$k > 1$}{\simple{
+                If $k > 1$, then $k a > a$, contradicting the fact that
+                $a$ is the largest number such that $a^2$ divides $n$.
+                Thus this case is impossible.
+              }}
             }
           }
+          \claim{Q.E.D.}{\simple{Definition of square-free \ref{squarefree}}}.
+        }
+        \claim{Q.E.D.}
+      }
+      \claim{$a \leq \sqrt{n}$}{\simple{
+        $$a \leq \sqrt{m} \leq \sqrt{n}$$
+        which follows from the previous claim and monotonicity of $\sqrt{-}$.
+      }}
+      \claim{
+        There exists $\Set{p_1, \hdots, p_k} \in \mathcal{P}(\Pi(n))$ such that
+        $b = p_1 \cdots p_k$
+      }{
+        \claim{There exist primes $p_1, \hdots, p_k$ such that $b = p_1 \cdots p_k$}{
+          \simple{By the prime number theorem}
+        }
+        \claim{For each $i$, $p_i \in \Pi(n)$}{
+          \simple{$$p_i \leq b \leq m \leq n$$ so the claim follows from the definition \ref{bigpin}.}
+        }
+        \claim{For any $i \neq j$, $p_i \neq p_j$}{
+          \simple{
+            If for some $i \neq j$, $p_i = p_j$, then $p_i^2$ divides $b$, contradicting the
+            square-free-ness of $b$.
+          }
+        }
+        \claim{Q.E.D.}
+      }
+    }
+  }
 
-%TODO: Counting lemma, sets surjection size lemma
-%TODO: Complete set of type theoretic primitives with \allof (i.e., sigma type)
-        \suppose{There are finitely many primes.}
+  \theorem{There are infinitely many prime numbers}{
+    \suppose{
+      \item There are finitely many primes.
+    }
+    \then{
+      \item Contradiction.
+    }
 
-        \then{
+    \proof{
+      \suppose{\item $n \in \bn$}
+      \then{\item $\pi(n) \geq \frac{1}{2} \log n$}
+      \because{
+        \claim{$2^{\pi(n)} \sqrt{n} \geq n$}{
+          \claim{$2^{\pi(n)} \sqrt{n} \geq \rs{\mathcal{P}(\Pi(n)) \times \Set{1, \hdots, \floor{\sqrt{n}}}}$}{
+            \simple{
+              \begin{align*}
+                \rs{\mathcal{P}(\Pi(n)) \times \Set{1, \hdots, \floor{\sqrt{n}}}}
+                &= 2^{\pi(n)} \floor{\sqrt{n}}
+                &\leq 2^{\pi(n)} \sqrt{n}
+              \end{align*}
+            }
+          }
+          \claim{$\rs{\mathcal{P}(\Pi(n)) \times \Set{1, \hdots, \floor{\sqrt{n}}}} \geq n$}{
+            \claim{$\mrm{Im}(f) \supseteq \Set{1, \hdots, n}$}{
+              \simple{
+                Let $m \in \Set{1, \hdots, n}$. By \ref{faclem}, there is some
+                $(P, a) \in \mathcal{P}(\Pi(n)) \times \Set{1, \hdots, \floor{\sqrt{n}}}$
+                such that $f(P, a) = m$.
+              }
+            }
+            \claim{Q.E.D.}{
+              \simple{
+                The last claim implies the existence of a surjection from the domain
+                of $f$ (namely $\mathcal{P}(\Pi(n)) \times \Set{1, \hdots, \floor{\sqrt{n}}}$)
+                to $\Set{1, \hdots, n}$, so that the cardinality of $\mrm{Dom}(f)$ is
+                at least $n$.
+              }
+            }
+          }
+          \claim{Q.E.D.}{\simple{Transitivity of $\geq$.}}
+        }
+        \claim{Q.E.D.}{\simple{Algebra.}}
+      }
+
+      \claim{Q.E.D.}{
+        \simple{
+          Since the function $n \mapsto \frac{1}{2} \log n$ goes
+          to infinity with $n$, so too does $\pi(n)$.
+          By \ref{pidef}, this implies there are infinitely many primes.
         }
       }
     }

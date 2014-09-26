@@ -66,8 +66,9 @@ simpleSection keyword p = do
   inner <- tok $ \case
     Command c (Just [FixArg (Block b)]) -> if c == keyword then Just b else Nothing
     _                                   -> Nothing
+  x <- withInput inner (texSpace *> p <* (eof <?> "End of " ++ keyword ++ " section"))
   texSpace
-  withInput inner (texSpace *> p <* (eof <?> "End of " ++ keyword ++ " section"))
+  return x
 
 {-
   envStep s p = do
@@ -87,10 +88,10 @@ item = satisfy (== NoArgCmd "item") >> Block <$> many (satisfy (/= NoArgCmd "ite
 
 proof :: TexParser Ref (Raw ProofF)
 proof =  simpleSection "proof" proofInner
---     <|> simpleSection "simple" (Simple . Block <$> many anyChunk)
   where
-  -- TODO: We'll see how this goes.
-  proofInner = (Steps <$> many step) <* eof -- <|> (Simple . Block <$> many anyChunk)
+  proofInner = 
+    (simpleSection "simple" (Simple . Block <$> many anyChunk) <* eof)
+    <|> ((Steps <$> many step) <* eof
 
   cases = simpleSection "cases" (Cases () <$> optLabel <*> many oneCase)
     where oneCase = descSection "case" proofInner
@@ -119,8 +120,9 @@ proof =  simpleSection "proof" proofInner
 
   supposeThen = do
     (lab, supps) <- simpleSection "suppose" ((,) <$> optLabel <*> many item)
-    (ss
-    Suppose () 
+--    texSpace
+    results <- simpleSection "then" (many item)
+    Suppose () lab supps results <$> optBecause
 
   suchThat =
     simpleSection "suchthat" $
@@ -135,7 +137,7 @@ proof =  simpleSection "proof" proofInner
 
   optBecause = optionMaybe (simpleSection "because" proofInner)
 
-  step = cases <|> claim <|> let_ <|> take <|> comment
+  step = cases <|> claim <|> supposeThen <|> let_ <|> take <|> comment
 
 theorem :: TexParser Ref (Raw DeclarationF)
 theorem = do
@@ -164,6 +166,7 @@ definition = (<?> "definition") $ do
       Just [OptArg lab, FixArg comm] -> return (Just lab, comm)
       Just [FixArg comm]             -> return (Nothing, comm)
       _                              -> fail "comment: Wrong number of arguments"
+    texSpace
     return (Comment name comm)
 
   clause = (left . Block) <$> many1 (satisfy notComment)

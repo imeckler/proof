@@ -352,7 +352,6 @@ toHtml (Resources {..}) doc =
 --TODO : remove monadio
 compile :: (Monad m, MonadIO m, Applicative m) => Resources -> RawDocument -> Err m T.Text
 compile res doc = do
-  liftIO $ print doc
   (doc', CState labs) <- runStateT (collectLabels doc) (CState M.empty)
   toHtml res =<< locate labs doc'
 
