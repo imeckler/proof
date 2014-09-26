@@ -1,0 +1,7 @@
+@font-face {
+    font-family: 'latin_modern_roman10BdIt';
+    src: url('lmroman10-bolditalic-webfont.woff') format('woff');
+    font-weight: bold;
+    font-style: italic;
+}
+

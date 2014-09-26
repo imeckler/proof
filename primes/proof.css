@@ -1,0 +1,173 @@
+body {
+  font-family: 'Latin-Modern-Roman';
+}
+
+.case {
+  padding-left: 40px;
+}
+
+.case-header {
+  font-weight: bold;
+}
+
+.claim {
+  border-left: 3px solid black;
+  padding-left: 10px;
+  margin-bottom: 5px;
+  margin-top: 5px;
+}
+
+.comment {
+  max-width: 800px;
+}
+
+.comment .node-content {
+  /* font-style: italic; */
+}
+
+.comment .name {
+  font-weight: 500;
+  font-style: oblique;
+}
+
+.comment blockquote p {
+  background: #f9f9f9;
+  border-left: 5px solid #E94F1D;
+  padding-left:40px;
+  padding-top:15px;
+  padding-bottom:15px;
+  padding-right:15px;
+  /*
+  padding-left: 2.4rem;
+  padding-top:1rem;
+  padding-bottom:1rem;
+  padding-right:1rem;
+  */
+}
+
+.decl-header {
+  cursor              : pointer;
+  -webkit-user-select : none;
+  -moz-user-select    : none;
+  -ms-user-select     : none;
+}
+
+.decl-header h2 {
+  /* font-weight         : bold; */
+  font-size: 1.7em;
+  display: inline-block;
+}
+
+.decl-header .name {
+  margin-left: 25px;
+  font-size: 1.5em;
+}
+
+.top-level > .node-content {
+  border-top: 1px solid black;
+  margin-top: 10px;
+  padding-top: 10px;
+  margin-left:25px;
+}
+
+.definition {
+  border-left: 5px solid #424242;
+  padding-left: 14px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  display: inline-block;
+}
+
+.emph {
+  font-style: italic;
+}
+
+.location-label {
+  display        : inline-block;
+  width          : 30px;
+  vertical-align : top;
+  margin-right   : 10px;
+  margin-left    : 10px;
+  margin-top     : 20px;
+}
+
+.macros {
+  display: none;
+}
+
+.proof .node-content {
+  padding-left:40px;
+}
+
+.proof .node-header {
+  font-family: 'Latin-Modern-Roman-Caps';
+}
+
+.list-header {
+  font-family: 'Latin-Modern-Roman-Caps';
+}
+
+.suppose {
+  border-left: 3px solid black;
+  padding-left: 10px;
+  margin-bottom: 5px;
+  margin-top: 5px;
+}
+
+.theorem {
+  border-left: 5px solid #3299BB;
+  padding-left: 14px;
+  margin-top: 10px;
+  margin-bottom: 10px;
+  display: inline-block;
+}
+
+.node-header {
+  cursor: pointer;
+}
+
+.closed {
+  display: none;
+}
+
+/*
+.toggle {
+  width: 50px;
+  height:100%;
+  display:inline-block;
+}
+
+.toggle-closed {
+  background-color: black;
+}
+
+.toggle-open {
+  background-color: red;
+}
+
+.section-header {
+  height: 50px;
+  background-color: gray;
+}
+
+.step-header {
+  height: 50px;
+}
+
+.step-header > .statement {
+  display: inline-block;
+}
+
+.section-title {
+  font-size: 18pt;
+}
+
+.name {
+  display: inline-block;
+  margin-left: 10px;
+}
+
+.node-content {
+  padding-left: 50px;
+}
+*/
