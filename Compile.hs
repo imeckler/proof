@@ -16,6 +16,7 @@ import Data.Monoid
 import Data.Functor.Coproduct
 import Data.Traversable
 import qualified Data.Map as M
+import Control.Arrow
 import Control.Monad.State hiding (sequence, mapM)
 import Control.Monad.Except hiding (sequence, mapM)
 import Utils
@@ -43,6 +44,7 @@ insertErr mayLab v = void (traverse f mayLab) where
       Nothing -> modify (\s -> s {labels = M.insert lab v (labels s)}) -- TODO: Lensify
       Just _  -> throwError ("Duplicate label: " ++ labelString lab)
 
+-- TODO: Fix the fact that labels could start at 1 due to macros,
 collectLabels :: (Monad m, Functor m) => [DeclarationF () Ref] -> C m [DeclarationF (Int, Int) Ref]
 collectLabels = sequence . zipWith goDecl [0..]
   where

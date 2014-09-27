@@ -1,3 +1,21 @@
+$(function(){
+
+function posRelativeToBody(node) {
+  var pos = node.position();
+  var bodyPos = $(document.body).position();
+  return {left : pos.left - bodyPos.left, top : pos.top - bodyPos.top};
+}
+
+function panTo(node) {
+  var pos = posRelativeToBody(node);
+  var body = $(document.body);
+  body.animate({
+    'margin-left': -pos.left + 100,
+    'margin-top': -pos.top + 100
+  });
+}
+window.panTo = panTo;
+
 function toggleSection(elt) {
   var open = elt.data('open');
 }
@@ -7,36 +25,6 @@ function locationLabel(node) {
   var d = pos[0], i = pos[1];
   // TODO: Call Mathjax after this function
   return $('<div class="location-label">$' + '\\langle' + d + '\\rangle' + i + '$</div>');
-}
-
-function decorate(className, titleName, node) {
-  var nodeName = node.children('.name');
-
-  var visToggle = $('<div class="toggle toggle-closed">');
-  var wrapper   = $('<div class="' + className + '-wrapper">');
-  var content   = $('<div class="node-content ' + className + '-content">');
-  var header    = $('<div class="section-header"><span class="section-title">' + titleName + '</span></div>');
-
-  var visible = false;
-  visToggle.click(function() {
-    if (visible) {
-      content.css('display', 'none');
-    } else {
-      content.css('display', 'block');
-    }
-    visToggle.toggleClass('toggle-closed');
-    visToggle.toggleClass('toggle-open');
-    visible = !visible;
-  });
-
-  header.append(nodeName);
-  header.prepend(visToggle);
-  content.append(node.contents());
-  wrapper.append(header, content);
-
-  node.replaceWith(wrapper);
-
-  content.css('display', 'none');
 }
 
 function decorateStep(step) {
@@ -210,19 +198,14 @@ function decorateTheorems() {
   });
 }
 
-$(function(){
-  MathJax.Hub.Queue(decorateCaseBlocks);
-  MathJax.Hub.Queue(decorateSupposes);
-  MathJax.Hub.Queue(decorateTakes);
-  MathJax.Hub.Queue(decorateLets);
-  MathJax.Hub.Queue(decorateSuchThats);
-  MathJax.Hub.Queue(decorateDefinitions);
-  MathJax.Hub.Queue(decorateTheorems);
-  MathJax.Hub.Queue(decorateComments);
-  MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
-  MathJax.Hub.Queue(decorateProofs);
-/*
-  MathJax.Hub.Queue(decorateComments);
-  MathJax.Hub.Queue(decorateSteps);
-*/
+MathJax.Hub.Queue(decorateCaseBlocks);
+MathJax.Hub.Queue(decorateSupposes);
+MathJax.Hub.Queue(decorateTakes);
+MathJax.Hub.Queue(decorateLets);
+MathJax.Hub.Queue(decorateSuchThats);
+MathJax.Hub.Queue(decorateDefinitions);
+MathJax.Hub.Queue(decorateTheorems);
+MathJax.Hub.Queue(decorateComments);
+MathJax.Hub.Queue(['Typeset', MathJax.Hub]);
+MathJax.Hub.Queue(decorateProofs);
 });
