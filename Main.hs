@@ -4,15 +4,12 @@ module Main where
 import Prelude hiding (FilePath)
 import Data.String (fromString)
 import Data.Maybe (fromMaybe)
-import Parse
-import Text.Parsec.String
 import Compile
 import Control.Arrow
 import Control.Monad
 import Control.Monad.Except
 import Control.Monad.Catch
 import Control.Concurrent (threadDelay)
-import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Options.Applicative hiding (Parser)
 import Text.LaTeX.Base.Parser
@@ -29,8 +26,6 @@ data AppData = AppData
   , outputDir :: Maybe FilePath
   , watch     :: Bool
   }
-
-data Format = Proof | Tex deriving (Show)
 
 opts :: ParserInfo AppData
 opts = info (helper <*> optParser)
@@ -50,17 +45,8 @@ opts = info (helper <*> optParser)
     path :: Monad m => String -> m FilePath
     path = liftM fromString . str
 
-fileFormat :: Monad m => FilePath -> Err m Format
-fileFormat s = case fromMaybe "no extension" (extension s) of 
-  "proof" -> return Proof
-  "tex"   -> return Tex
-  e       -> throwError (T.unpack e)
-
 outputPath :: FilePath -> FilePath
 outputPath p = replaceExtension p "html"
-
-proofReader :: MonadIO m => FilePath -> Err m RawDocument
-proofReader = ExceptT . liftIO . fmap (left show) . parseFromFile document . encodeString
 
 texReader :: (MonadIO m, Functor m) => FilePath -> Err m RawDocument
 texReader = (ExceptT . liftIO . fmap (left show) . parseLaTeXFile . encodeString) >=> decorate >=> translate
@@ -96,37 +82,27 @@ loadResources =
   readDataFile = (`catch` (\(_::IOError) ->throwError "Could not read data files"))
                . liftIO . (T.readFile <=< getDataFileName)
 
+pkgPath :: FilePath -> FilePath -> FilePath
 pkgPath inputPath outputDir = outputDir </> addExtension (basename inputPath) "proofpkg"
 
 compileAndOutput :: (MonadIO m, MonadCatch m, Applicative m) => FilePath -> FilePath -> Err m ()
-compileAndOutput inputPath outputDir =
-  fileFormat inputPath >>= \case
-    Proof -> go proofReader
-    Tex   -> go texReader
+compileAndOutput inputPath outputDir = do
+  let p        = pkgPath inputPath outputDir
+      htmlPath = p </> "index.html"
+  html <- join (compile <$> loadResources <*> texReader inputPath)
+  -- TODO: Dangerous to remove directories. Remove when you merge
+
+  liftIO $ do
+    isDirectory p >>= flip when (removeTree p)
+    createDirectory False p
+
+  liftIO (getDataFilePath "lib") >>= \l -> copyDirectory l p
+  liftIO $ do
+    forM_ ["src/js/proof.js", "src/css/proof.css"] $ \q ->
+      getDataFilePath q >>= \q' -> copyFile q' (p </> filename q)
+    T.writeFile (encodeString htmlPath) html
   where
-  getDataFilePath :: FilePath -> IO FilePath
   getDataFilePath = fmap decodeString . getDataFileName . encodeString
-  go reader = do
-    let p        = pkgPath inputPath outputDir
-        htmlPath = p </> "index.html"
-    html <- join (compile <$> loadResources <*> reader inputPath)
-    -- TODO: Dangerous to remove directories. Remove when you merge
-
-    liftIO $ do
-      isDirectory p >>= flip when (removeTree p)
-      createDirectory False p
-
-    liftIO (getDataFilePath "lib") >>= \l -> copyDirectory l p
-    liftIO $ do
-      forM_ ["src/js/proof.js", "src/css/proof.css"] $ \q ->
-        getDataFilePath q >>= \q' -> copyFile q' (p </> filename q)
-      T.writeFile (encodeString htmlPath) html
-
-run inputPath outputDir =
-  runExceptT (compileAndOutput inputPath out) >>= \case
-    Left e  -> putStrLn e
-    Right _ -> return () 
-  where out = fromMaybe (directory inputPath) outputDir
 
 main :: IO ()
 main = do
@@ -143,4 +119,10 @@ main = do
       forever $ threadDelay maxBound
     where
     fEvent = \case { Modified p _ -> p == inputPath; _ -> False }
+
+  run inputPath outputDir =
+    runExceptT (compileAndOutput inputPath out) >>= \case
+      Left e  -> putStrLn e
+      Right _ -> return () 
+    where out = fromMaybe (directory inputPath) outputDir
 
