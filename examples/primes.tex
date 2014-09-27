@@ -43,7 +43,7 @@
     \label{faclem}
     \suppose{
       \item $m, n \in \bn$
-      \item $m \leq n$
+      \item $0 < m \leq n$
     } \then{
       \item
         There exists $\Set{p_1, \hdots, p_k} \in \mathcal{P}(\Pi(n))$ and
@@ -55,14 +55,24 @@
       \claim{For some $a, b \in \bn$ with $b$ square-free, we have $ba^2 = m$.}{
         \let{
           \item $a$ be the largest number such that $a^2$ divides $n$ 
-          \item $b = \frac{n}{a^2}$
+          \item $b = \frac{m}{a^2}$
         }
         \claim{$b$ is square-free}{
           \take{\item $k \in \bn$} \suchthat{\item $k^2$ divides $b$}
 
           \claim{$k = 1$}{
             \cases{
-              \case{$k = 0$}{\simple{This case is impossible since $0$ divides no number}}
+              \case{$k = 0$}{
+                \claim{$b > 0$}{
+                  \simple{Follows from $m > 0$ and $a \geq 1$}
+                }
+                \claim{Q.E.D.}{
+                  \simple{This case is impossible because $b > 0$ and
+                    $k^2 = 0$ divides $b$, but the only number which
+                    $0$ divides is $0$.
+                  }
+                }
+              }
 
               \case{$k = 1$}{\simple{Reflexivity.}}
               
