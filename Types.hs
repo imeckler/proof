@@ -76,3 +76,4 @@ type RawDocument        = DocumentF () Tex.Ref
 type LocatedDocument    = DocumentF (Int, Int) FullLocation
 
 type Err m = ExceptT String m
+

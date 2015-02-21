@@ -42,8 +42,8 @@ opts = info (helper <*> optParser)
           help "Path of output directory. Default is '.'"))
     <*> switch (long "watch" <> short 'w' <> help "Recompile on file-change")
     where
-    path :: Monad m => String -> m FilePath
-    path = liftM fromString . str
+    path :: ReadM FilePath
+    path = eitherReader (Right . fromString)
 
 outputPath :: FilePath -> FilePath
 outputPath p = replaceExtension p "html"
